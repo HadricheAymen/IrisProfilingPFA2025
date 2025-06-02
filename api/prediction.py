@@ -66,6 +66,8 @@ if not firebase_admin._apps:
                 print("   - FIREBASE_PROJECT_ID")
                 print("   - FIREBASE_PRIVATE_KEY")
                 print("   - FIREBASE_CLIENT_EMAIL")
+                print("🔗 Get these from Firebase Console > Project Settings > Service Accounts")
+                print("🔗 Generate new private key and extract values from the JSON file")
     except Exception as e:
         print(f"❌ Firebase initialization error: {e}")
         # Continue without Firebase - we'll handle errors when trying to use it
@@ -658,6 +660,42 @@ def predict_efficient():
     except Exception as e:
         return jsonify({'error': f'Erreur inattendue: {str(e)}'}), 500
 
+@prediction_bp.route('/check-env', methods=['GET'])
+def check_environment():
+    """
+    Check environment variables for Firebase configuration
+    """
+    env_vars = {
+        'FIREBASE_PROJECT_ID': bool(os.environ.get('FIREBASE_PROJECT_ID')),
+        'FIREBASE_PRIVATE_KEY': bool(os.environ.get('FIREBASE_PRIVATE_KEY')),
+        'FIREBASE_CLIENT_EMAIL': bool(os.environ.get('FIREBASE_CLIENT_EMAIL')),
+        'FIREBASE_PRIVATE_KEY_ID': bool(os.environ.get('FIREBASE_PRIVATE_KEY_ID')),
+        'FIREBASE_CLIENT_ID': bool(os.environ.get('FIREBASE_CLIENT_ID')),
+    }
+
+    # Show partial values for debugging (without exposing secrets)
+    partial_values = {}
+    for key in env_vars.keys():
+        value = os.environ.get(key, '')
+        if value:
+            if 'KEY' in key:
+                partial_values[key] = f"{value[:20]}...{value[-10:]}" if len(value) > 30 else "***"
+            else:
+                partial_values[key] = value
+        else:
+            partial_values[key] = None
+
+    required_vars = ['FIREBASE_PROJECT_ID', 'FIREBASE_PRIVATE_KEY', 'FIREBASE_CLIENT_EMAIL']
+    all_required_set = all(env_vars[var] for var in required_vars)
+
+    return jsonify({
+        'environment_variables': env_vars,
+        'partial_values': partial_values,
+        'all_required_set': all_required_set,
+        'required_variables': required_vars,
+        'firebase_initialized': bool(firebase_admin._apps)
+    })
+
 @prediction_bp.route('/test-firebase', methods=['GET'])
 def test_firebase():
     """
@@ -669,7 +707,8 @@ def test_firebase():
             return jsonify({
                 'firebase_initialized': False,
                 'error': 'Firebase not initialized',
-                'message': 'Check environment variables or credentials file'
+                'message': 'Check environment variables or credentials file',
+                'help': 'Visit /api/check-env to see environment variable status'
             }), 500
 
         # Test Firestore connection
