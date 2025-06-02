@@ -5,7 +5,7 @@ import io
 import base64
 from PIL import Image
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, storage
 import os
 import uuid
 from datetime import datetime
@@ -48,28 +48,77 @@ if not firebase_admin._apps:
         print(f"❌ Firebase initialization error: {e}")
         # Continue without Firebase - we'll handle errors when trying to use it
 
-def save_to_firebase(user_id, prediction_data, image_url=None):
+def save_processed_image_to_storage(processed_image, user_id, image_type="single"):
+    """
+    Save processed image to Firebase Storage
+
+    Args:
+        processed_image: Processed image array (numpy array)
+        user_id: User ID from the request
+        image_type: Type of image ("single", "left", "right")
+
+    Returns:
+        str: Public URL of the uploaded image or None if failed
+    """
+    try:
+        # Convert numpy array to PIL Image
+        if processed_image.dtype != 'uint8':
+            # Normalize to 0-255 range if needed
+            if processed_image.max() <= 1.0:
+                processed_image = (processed_image * 255).astype('uint8')
+            else:
+                processed_image = processed_image.astype('uint8')
+
+        # Convert to PIL Image
+        if len(processed_image.shape) == 2:  # Grayscale
+            pil_image = Image.fromarray(processed_image, mode='L')
+        else:  # RGB
+            pil_image = Image.fromarray(processed_image, mode='RGB')
+
+        # Convert to bytes
+        img_byte_arr = io.BytesIO()
+        pil_image.save(img_byte_arr, format='JPEG', quality=85)
+        img_byte_arr.seek(0)
+
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"processed_images/{user_id}/{timestamp}_{image_type}_{uuid.uuid4().hex[:8]}.jpg"
+
+        # Upload to Firebase Storage
+        bucket = storage.bucket()
+        blob = bucket.blob(filename)
+        blob.upload_from_file(img_byte_arr, content_type='image/jpeg')
+
+        # Make the blob publicly accessible
+        blob.make_public()
+
+        return blob.public_url
+    except Exception as e:
+        print(f"❌ Firebase Storage upload error: {e}")
+        return None
+
+def save_to_firebase(user_id, prediction_data, image_urls=None):
     """
     Save prediction results to Firebase Firestore
-    
+
     Args:
         user_id: User ID from the request
         prediction_data: Prediction results
-        image_url: Optional URL to the stored image
+        image_urls: URLs to the stored processed images (can be string or dict)
     """
     try:
         db = firestore.client()
-        
+
         # Add metadata to the prediction data
         prediction_data.update({
             'timestamp': datetime.now(),
-            'image_url': image_url,
+            'processed_image_urls': image_urls,
             'source': request.headers.get('User-Agent', 'unknown')
         })
-        
+
         # Generate a unique document ID
         doc_id = f"{user_id}_{uuid.uuid4()}"
-        
+
         # Save to Firestore
         db.collection('iris_predictions').document(doc_id).set(prediction_data)
         return True
@@ -411,10 +460,15 @@ def predict():
         if user_id:
             # Add user_id to prediction results
             prediction_results['user_id'] = user_id
-            
+
+            # Save processed image to Firebase Storage
+            image_url = save_processed_image_to_storage(processed_image, user_id, "single")
+
             # Save to Firebase
-            firebase_success = save_to_firebase(user_id, prediction_results)
+            firebase_success = save_to_firebase(user_id, prediction_results, image_url)
             prediction_results['saved_to_firebase'] = firebase_success
+            if image_url:
+                prediction_results['processed_image_url'] = image_url
         
         # Return results
         return jsonify(prediction_results)
@@ -458,52 +512,55 @@ def predict_efficient():
             return jsonify({'error': f'Format de fichier non supporté. Formats acceptés: {", ".join(allowed_extensions)}'}), 400
         
         # Fonction pour traiter une image et obtenir les prédictions
-        def process_and_predict(file):
+        def process_and_predict(file, image_type="unknown"):
             # Lire les données de l'image et convertir en image PIL
             image_data = file.read()
             image = Image.open(io.BytesIO(image_data))
-            
+
             # Prétraiter l'image pour EfficientNet (redimensionner à la taille attendue)
             target_size = (224, 224)  # Taille standard pour EfficientNet
             image = image.resize(target_size)
-            
+
             # Convertir en array pour la prédiction
             img_array = np.array(image)
-            
+
             # Normaliser l'image si nécessaire (valeurs entre 0 et 1)
             if img_array.max() > 1.0:
                 img_array = img_array / 255.0
-            
+
+            # Store processed image for Firebase upload (before adding batch dimension)
+            processed_image_for_storage = img_array.copy()
+
             # Ajouter la dimension de batch
             img_array = np.expand_dims(img_array, 0)
-            
+
             # Charger le modèle EfficientNet si ce n'est pas déjà fait
             model_name = "Efficient_10unfrozelayers.keras"
             if not hasattr(current_app, 'efficient_model'):
                 current_app.efficient_model = load_model(model_name)
-            
+
             # Check if we got a dummy model (string) instead of a real model
             if isinstance(current_app.efficient_model, str) and current_app.efficient_model == "dummy_model":
                 # Return dummy predictions for development/testing
                 # Create a dummy array with 8 classes (matching your class_names)
                 dummy_predictions = np.zeros(8)
                 dummy_predictions[0] = 0.7  # Set highest probability to first class
-                return dummy_predictions
-            
+                return dummy_predictions, processed_image_for_storage
+
             if current_app.efficient_model is None:
                 raise ValueError(f'Erreur lors du chargement du modèle {model_name}')
-            
+
             # Faire la prédiction
             predictions = current_app.efficient_model.predict(img_array)
-            
-            return predictions[0]
+
+            return predictions[0], processed_image_for_storage
         
         # Traiter les deux images et obtenir les prédictions
         file1.seek(0)  # Remettre le pointeur de fichier au début
         file2.seek(0)
-        pred1 = process_and_predict(file1)
+        pred1, processed_img1 = process_and_predict(file1, "left")
         file2.seek(0)
-        pred2 = process_and_predict(file2)
+        pred2, processed_img2 = process_and_predict(file2, "right")
         
         # Calculer la moyenne des prédictions
         avg_predictions = (pred1 + pred2) / 2.0
@@ -539,9 +596,21 @@ def predict_efficient():
             # Add user_id to prediction results
             prediction_results['user_id'] = user_id
 
+            # Save processed images to Firebase Storage
+            image_urls = {}
+            left_url = save_processed_image_to_storage(processed_img1, user_id, "left")
+            right_url = save_processed_image_to_storage(processed_img2, user_id, "right")
+
+            if left_url:
+                image_urls['left'] = left_url
+            if right_url:
+                image_urls['right'] = right_url
+
             # Save to Firebase
-            firebase_success = save_to_firebase(user_id, prediction_results)
+            firebase_success = save_to_firebase(user_id, prediction_results, image_urls)
             prediction_results['saved_to_firebase'] = firebase_success
+            if image_urls:
+                prediction_results['processed_image_urls'] = image_urls
 
         # Retourner les résultats
         return jsonify(prediction_results)
