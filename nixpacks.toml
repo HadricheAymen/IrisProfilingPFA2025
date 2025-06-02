@@ -2,7 +2,7 @@
 nixPkgs = [
   "python311Full",
   "curl",
-  "cmake",
+  "cmake", 
   "pkg-config",
   "gcc",
   "boost",
