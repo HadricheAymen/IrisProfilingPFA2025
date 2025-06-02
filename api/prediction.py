@@ -2,6 +2,7 @@ from flask import current_app, jsonify, request, Blueprint
 import numpy as np
 import tensorflow as tf
 import io
+import base64
 from PIL import Image
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -518,9 +519,180 @@ def predict_efficient():
             "confidence": confidence,
             "class_predictions": class_predictions
         })
-    
+
     except Exception as e:
         return jsonify({'error': f'Erreur inattendue: {str(e)}'}), 500
+
+
+@prediction_bp.route('/analyze-iris-enhanced', methods=['POST'])
+def analyze_iris_enhanced():
+    """
+    Enhanced iris analysis endpoint that accepts:
+    - Two iris images (left and right)
+    - User profile data
+    - Processes both images through ML model
+    - Saves complete results to Firestore
+    - Returns only primary personality class
+    """
+    try:
+        # Check if both iris images are provided
+        if 'left_iris' not in request.files or 'right_iris' not in request.files:
+            return jsonify({'error': 'Both left_iris and right_iris images are required'}), 400
+
+        left_iris_file = request.files['left_iris']
+        right_iris_file = request.files['right_iris']
+
+        if left_iris_file.filename == '' or right_iris_file.filename == '':
+            return jsonify({'error': 'No file selected for one or both iris images'}), 400
+
+        # Get user profile data from form fields
+        user_profile = {
+            'name': request.form.get('name', ''),
+            'email': request.form.get('email', ''),
+            'age': request.form.get('age', ''),
+            'gender': request.form.get('gender', ''),
+            'comments': request.form.get('comments', ''),
+            'user_id': request.form.get('user_id', '')
+        }
+
+        # Validate required fields
+        if not user_profile['email']:
+            return jsonify({'error': 'Email is required'}), 400
+
+        # Process both iris images and get predictions
+        left_predictions = process_iris_image(left_iris_file)
+        right_predictions = process_iris_image(right_iris_file)
+
+        # Calculate combined predictions and confidence scores
+        analysis_results = calculate_combined_analysis(left_predictions, right_predictions)
+
+        # Determine primary personality class
+        primary_class = analysis_results['primary_class']
+
+        # Convert images to base64 for storage
+        left_iris_file.seek(0)
+        right_iris_file.seek(0)
+        left_iris_base64 = base64.b64encode(left_iris_file.read()).decode('utf-8')
+        right_iris_base64 = base64.b64encode(right_iris_file.read()).decode('utf-8')
+
+        # Prepare complete data for Firestore
+        firestore_data = {
+            'user_profile': user_profile,
+            'analysis_results': analysis_results,
+            'primary_class': primary_class,
+            'left_iris_image': left_iris_base64,
+            'right_iris_image': right_iris_base64,
+            'analysis_timestamp': datetime.now().isoformat(),
+            'source': 'flutter_mobile',
+            'version': '2.0'
+        }
+
+        # Save to Firestore
+        firestore_success = save_iris_analysis_to_firestore(firestore_data)
+
+        # Return only the primary personality class to frontend
+        response_data = {
+            'primary_class': primary_class,
+            'saved_to_firestore': firestore_success
+        }
+
+        if not firestore_success:
+            response_data['warning'] = 'Analysis completed but failed to save to database'
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
+
+
+def process_iris_image(iris_file):
+    """Process a single iris image and return predictions"""
+    try:
+        # Read and preprocess the image
+        image_data = iris_file.read()
+        image = Image.open(io.BytesIO(image_data))
+
+        # Resize to model input size
+        target_size = (224, 224)
+        image = image.resize(target_size)
+
+        # Convert to array and normalize
+        img_array = np.array(image)
+        if img_array.max() > 1.0:
+            img_array = img_array / 255.0
+
+        # Add batch dimension
+        img_array = np.expand_dims(img_array, 0)
+
+        # Load model if not already loaded
+        model_name = "Efficient_10unfrozelayers.keras"
+        if not hasattr(current_app, 'efficient_model'):
+            current_app.efficient_model = load_model(model_name)
+
+        if current_app.efficient_model is None:
+            raise ValueError(f'Error loading model {model_name}')
+
+        # Make prediction
+        predictions = current_app.efficient_model.predict(img_array)
+
+        return predictions[0]
+
+    except Exception as e:
+        raise Exception(f'Error processing iris image: {str(e)}')
+
+
+def calculate_combined_analysis(left_predictions, right_predictions):
+    """Calculate combined analysis from both iris predictions"""
+    try:
+        # Get class names
+        class_names = getattr(current_app, 'class_names', [f"class_{i}" for i in range(len(left_predictions))])
+
+        # Calculate average predictions
+        avg_predictions = (left_predictions + right_predictions) / 2.0
+
+        # Create confidence scores for each class
+        confidence_scores = {}
+        for i, class_name in enumerate(class_names):
+            confidence_scores[class_name] = {
+                'left_confidence': float(left_predictions[i]),
+                'right_confidence': float(right_predictions[i]),
+                'combined_confidence': float(avg_predictions[i])
+            }
+
+        # Determine primary class
+        primary_class_index = np.argmax(avg_predictions)
+        primary_class = class_names[primary_class_index]
+        primary_confidence = float(avg_predictions[primary_class_index])
+
+        return {
+            'primary_class': primary_class,
+            'primary_confidence': primary_confidence,
+            'confidence_scores': confidence_scores,
+            'left_predictions': left_predictions.tolist(),
+            'right_predictions': right_predictions.tolist(),
+            'combined_predictions': avg_predictions.tolist()
+        }
+
+    except Exception as e:
+        raise Exception(f'Error calculating combined analysis: {str(e)}')
+
+
+def save_iris_analysis_to_firestore(data):
+    """Save iris analysis results to Firestore"""
+    try:
+        db = firestore.client()
+
+        # Generate unique document ID
+        doc_id = f"iris_analysis_{data['user_profile']['user_id']}_{uuid.uuid4()}"
+
+        # Save to iris_analysis_results collection
+        db.collection('iris_analysis_results').document(doc_id).set(data)
+
+        return True
+
+    except Exception as e:
+        print(f"❌ Firestore save error: {e}")
+        return False
 
 
 
