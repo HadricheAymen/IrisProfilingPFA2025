@@ -478,6 +478,14 @@ def predict_efficient():
             if not hasattr(current_app, 'efficient_model'):
                 current_app.efficient_model = load_model(model_name)
             
+            # Check if we got a dummy model (string) instead of a real model
+            if isinstance(current_app.efficient_model, str) and current_app.efficient_model == "dummy_model":
+                # Return dummy predictions for development/testing
+                # Create a dummy array with 8 classes (matching your class_names)
+                dummy_predictions = np.zeros(8)
+                dummy_predictions[0] = 0.7  # Set highest probability to first class
+                return dummy_predictions
+            
             if current_app.efficient_model is None:
                 raise ValueError(f'Erreur lors du chargement du modèle {model_name}')
             
@@ -517,7 +525,8 @@ def predict_efficient():
         return jsonify({
             "prediction": predicted_class,
             "confidence": confidence,
-            "class_predictions": class_predictions
+            "class_predictions": class_predictions,
+            "is_dummy_prediction": isinstance(current_app.efficient_model, str)
         })
 
     except Exception as e:
@@ -693,6 +702,7 @@ def save_iris_analysis_to_firestore(data):
     except Exception as e:
         print(f"❌ Firestore save error: {e}")
         return False
+
 
 
 
