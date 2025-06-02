@@ -3,10 +3,11 @@
 ## ✅ Your Backend is Ready!
 
 Your backend has been prepared for Railway deployment with:
-- ✅ No large model files (downloaded at runtime)
-- ✅ No Firebase credentials in code (uses environment variables)
-- ✅ Railway configuration files
-- ✅ Production-ready server setup
+- ✅ **dlib-based iris extraction** (high precision facial landmark detection)
+- ✅ **Automatic model downloading** (shape predictor downloaded at startup)
+- ✅ **No Firebase credentials in code** (uses environment variables)
+- ✅ **Railway configuration files** (nixpacks.toml for dlib dependencies)
+- ✅ **Production-ready server setup**
 
 ## 🔧 Manual Setup Steps
 

@@ -12,3 +12,5 @@ firebase-admin
 python-dotenv
 psutil
 requests
+dlib
+cmake

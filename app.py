@@ -69,6 +69,19 @@ def health_check():
         except Exception:
             firebase_status = 'error'
 
+        # Check dlib and model availability
+        dlib_status = 'unknown'
+        model_file_status = 'unknown'
+        try:
+            import dlib
+            dlib_status = 'available'
+
+            # Check if shape predictor model exists
+            model_path = os.path.join(os.path.dirname(__file__), 'models', 'shape_predictor_68_face_landmarks.dat')
+            model_file_status = 'available' if os.path.exists(model_path) else 'missing'
+        except ImportError:
+            dlib_status = 'not_installed'
+
         return jsonify({
             'status': 'healthy',
             'version': os.environ.get('API_VERSION', '1.0.0'),
@@ -80,6 +93,8 @@ def health_check():
             },
             'models': models_status,
             'firebase': firebase_status,
+            'dlib': dlib_status,
+            'shape_predictor_model': model_file_status,
             'timestamp': os.popen('date').read().strip()
         })
     except Exception as e:
