@@ -4,79 +4,76 @@ import numpy as np
 from PIL import Image, ImageEnhance
 import base64
 import io
-import dlib
+import os
 
 iris_bp = Blueprint('iris', __name__)
 
-# Fonction d'extraction d'iris avec dlib
+# Simplified iris extraction using OpenCV only (no dlib dependency)
 def extract_iris_from_image(image_data):
     try:
-        # Convertir les données d'image en array numpy
+        # Convert image data to numpy array
         nparr = np.frombuffer(image_data, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
+
         if frame is None:
-            raise ValueError("Impossible de charger l'image")
+            raise ValueError("Unable to load image")
 
-        # Définir le chemin du fichier shape_predictor
-        import os
-        predictor_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
-                                     "models", 
-                                     "shape_predictor_68_face_landmarks.dat")
-        
-        # Vérifier si le fichier existe
-        if not os.path.exists(predictor_path):
-            raise FileNotFoundError(f"Le fichier {predictor_path} n'existe pas")
+        # Convert to grayscale for face detection
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # Initialiser le détecteur de visage et le prédicteur de points de repère de dlib
-        detector = dlib.get_frontal_face_detector()
-        predictor = dlib.shape_predictor(predictor_path)
-        
-        # Détecter les visages
-        faces = detector(frame)
-        
+        # Use OpenCV's built-in face detector (Haar cascade)
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
+
+        # Detect faces
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+
         if len(faces) == 0:
-            raise ValueError("Aucun visage détecté dans l'image")
-            
-        # Prendre le premier visage détecté
-        face = faces[0]
-        
-        # Obtenir les points de repère du visage
-        landmarks = predictor(frame, face)
-        
-        # Points de repère pour les yeux (selon le modèle à 68 points)
-        # Œil gauche: points 36-41
-        # Œil droit: points 42-47
-        left_eye_points = [(landmarks.part(i).x, landmarks.part(i).y) for i in range(36, 42)]
-        right_eye_points = [(landmarks.part(i).x, landmarks.part(i).y) for i in range(42, 48)]
-        
-        # Calculer les rectangles englobants pour les yeux
-        left_eye_rect = cv2.boundingRect(np.array(left_eye_points))
-        right_eye_rect = cv2.boundingRect(np.array(right_eye_points))
-        
-        # Ajouter une marge autour des yeux
-        margin = 10
-        left_eye_x, left_eye_y, left_eye_w, left_eye_h = left_eye_rect
-        right_eye_x, right_eye_y, right_eye_w, right_eye_h = right_eye_rect
-        
-        # Extraire les régions des yeux avec la marge
-        left_eye = frame[left_eye_y-margin:left_eye_y+left_eye_h+margin, 
-                         left_eye_x-margin:left_eye_x+left_eye_w+margin]
-        right_eye = frame[right_eye_y-margin:right_eye_y+right_eye_h+margin, 
-                          right_eye_x-margin:right_eye_x+right_eye_w+margin]
-        
-        # Vérifier que les régions extraites ne sont pas vides
+            raise ValueError("No face detected in image")
+
+        # Take the first detected face
+        (x, y, w, h) = faces[0]
+        roi_gray = gray[y:y+h, x:x+w]
+        roi_color = frame[y:y+h, x:x+w]
+
+        # Detect eyes within the face region
+        eyes = eye_cascade.detectMultiScale(roi_gray)
+
+        if len(eyes) < 2:
+            raise ValueError("Could not detect both eyes")
+
+        # Sort eyes by x-coordinate (left to right)
+        eyes = sorted(eyes, key=lambda eye: eye[0])
+
+        # Extract left and right eye regions
+        left_eye_region = eyes[0]
+        right_eye_region = eyes[1]
+
+        # Add margin around eyes
+        margin = 20
+
+        # Extract left eye
+        ex, ey, ew, eh = left_eye_region
+        left_eye = roi_color[max(0, ey-margin):min(roi_color.shape[0], ey+eh+margin),
+                            max(0, ex-margin):min(roi_color.shape[1], ex+ew+margin)]
+
+        # Extract right eye
+        ex, ey, ew, eh = right_eye_region
+        right_eye = roi_color[max(0, ey-margin):min(roi_color.shape[0], ey+eh+margin),
+                             max(0, ex-margin):min(roi_color.shape[1], ex+ew+margin)]
+
+        # Check if extracted regions are valid
         if left_eye.size == 0 or right_eye.size == 0:
-            raise ValueError("Impossible d'extraire les régions des yeux")
-        
-        # Redimensionner pour mieux voir les détails de l'iris
-        left_eye = cv2.resize(left_eye, None, fx=5, fy=5)
-        right_eye = cv2.resize(right_eye, None, fx=5, fy=5)
-        
+            raise ValueError("Unable to extract eye regions")
+
+        # Resize for better iris detail visibility
+        left_eye = cv2.resize(left_eye, (200, 100))
+        right_eye = cv2.resize(right_eye, (200, 100))
+
         return left_eye, right_eye
 
     except Exception as e:
-        print(f"Erreur : {e}")
+        print(f"Error: {e}")
         return None, None
 
 # Fonction d'amélioration de qualité avec Pillow
@@ -129,10 +126,6 @@ def extract_iris():
             'right_iris': right_iris_base64
         })
     
-    except FileNotFoundError as e:
-        return jsonify({
-            'error': f"Fichier de modèle manquant: {str(e)}. Veuillez télécharger le fichier shape_predictor_68_face_landmarks.dat et le placer dans le dossier 'models'."
-        }), 400
     except Exception as e:
-        return jsonify({'error': f"Erreur lors de l'extraction: {str(e)}"}), 400
+        return jsonify({'error': f"Error during extraction: {str(e)}"}), 400
 

@@ -8,11 +8,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Model download URLs (you'll need to host these somewhere accessible)
+# Model download URLs (for models that need to be downloaded)
 MODEL_URLS = {
-    'shape_predictor_68_face_landmarks.dat': 'https://github.com/italojs/facial-landmarks-recognition/raw/master/shape_predictor_68_face_landmarks.dat',
     # Add your Keras model URL here if you host it somewhere
     # 'Efficient_10unfrozelayers.keras': 'YOUR_MODEL_URL_HERE'
+    # Note: dlib shape predictor is no longer needed as we use OpenCV for face/eye detection
 }
 
 def download_file(url, filepath):

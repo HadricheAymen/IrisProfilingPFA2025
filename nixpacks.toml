@@ -1,28 +1,5 @@
-[phases.setup]
-nixPkgs = [
-  "python311",
-  "pip",
-  "gcc",
-  "cmake",
-  "pkg-config",
-  "opencv4",
-  "boost",
-  "dlib"
-]
-
-[phases.install]
-cmds = [
-  "pip install --upgrade pip",
-  "pip install -r requirements.txt"
-]
-
-[phases.build]
-cmds = ["echo 'Build phase completed'"]
-
 [start]
 cmd = "python run.py"
 
 [variables]
-NIXPACKS_PYTHON_VERSION = "3.11"
-PYTHONPATH = "/app"
 PYTHONUNBUFFERED = "1"
