@@ -15,8 +15,10 @@ nixPkgs = [
 cmds = [
   "python -m venv /opt/venv",
   "/opt/venv/bin/pip install --upgrade pip",
-  "/opt/venv/bin/pip install cmake",
-  "/opt/venv/bin/pip install dlib --no-cache-dir",
+  "which cmake",
+  "cmake --version",
+  "export CMAKE_ARGS='-DDLIB_NO_GUI_SUPPORT=ON'",
+  "/opt/venv/bin/pip install dlib --no-cache-dir --verbose",
   "/opt/venv/bin/pip install -r requirements.txt"
 ]
 
@@ -26,3 +28,5 @@ cmd = "/opt/venv/bin/python run.py"
 [variables]
 NIXPACKS_PYTHON_VERSION = "3.11"
 PYTHONUNBUFFERED = "1"
+CMAKE_ARGS = "-DDLIB_NO_GUI_SUPPORT=ON"
+DLIB_NO_GUI_SUPPORT = "1"

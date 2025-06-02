@@ -13,4 +13,3 @@ python-dotenv
 psutil
 requests
 dlib
-cmake
