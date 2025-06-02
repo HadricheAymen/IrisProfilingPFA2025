@@ -1,7 +1,7 @@
 [phases.setup]
 nixPkgs = [
-  "python311",
-  "python311Packages.pip",
+  "python311Full",
+  "curl",
   "cmake",
   "pkg-config",
   "gcc",
@@ -13,6 +13,7 @@ nixPkgs = [
 
 [phases.install]
 cmds = [
+  "curl -sSL https://bootstrap.pypa.io/get-pip.py | python",
   "python -m pip install --upgrade pip",
   "python -m pip install cmake",
   "python -m pip install dlib --no-cache-dir",
