@@ -426,11 +426,12 @@ def predict():
 def predict_efficient():
     """
     Endpoint pour faire une prédiction avec le modèle EfficientNet.
-    
+
     Accepte deux images via une requête POST multipart/form-data.
     Traite les deux images, fait une prédiction pour chacune, calcule la moyenne
     et retourne un résultat unique.
-    
+    Also saves results to Firebase if user_id is provided.
+
     Returns:
         JSON: Résultats de la prédiction moyenne ou message d'erreur
     """
@@ -438,10 +439,13 @@ def predict_efficient():
         # Vérifier si les images ont été envoyées
         if 'image1' not in request.files or 'image2' not in request.files:
             return jsonify({'error': 'Deux images sont requises (image1 et image2)'}), 400
-        
+
         file1 = request.files['image1']
         file2 = request.files['image2']
-        
+
+        # Get user_id from form data
+        user_id = request.form.get('user_id')
+
         if file1.filename == '' or file2.filename == '':
             return jsonify({'error': 'Aucun fichier sélectionné pour une ou les deux images'}), 400
         
@@ -520,14 +524,27 @@ def predict_efficient():
         class_predictions = {}
         for i, class_name in enumerate(class_names):
             class_predictions[class_name] = float(avg_predictions[i])
-        
-        # Retourner les résultats
-        return jsonify({
+
+        # Prepare prediction results
+        prediction_results = {
             "prediction": predicted_class,
             "confidence": confidence,
             "class_predictions": class_predictions,
-            "is_dummy_prediction": isinstance(current_app.efficient_model, str)
-        })
+            "is_dummy_prediction": isinstance(current_app.efficient_model, str),
+            "model_type": "efficient_dual_image"
+        }
+
+        # Save to Firebase if user_id is provided
+        if user_id:
+            # Add user_id to prediction results
+            prediction_results['user_id'] = user_id
+
+            # Save to Firebase
+            firebase_success = save_to_firebase(user_id, prediction_results)
+            prediction_results['saved_to_firebase'] = firebase_success
+
+        # Retourner les résultats
+        return jsonify(prediction_results)
 
     except Exception as e:
         return jsonify({'error': f'Erreur inattendue: {str(e)}'}), 500
