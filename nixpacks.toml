@@ -2,4 +2,5 @@
 cmd = "python run.py"
 
 [variables]
+NIXPACKS_PYTHON_VERSION = "3.11"
 PYTHONUNBUFFERED = "1"
