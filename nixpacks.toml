@@ -1,13 +1,13 @@
 [phases.setup]
 nixPkgs = [
   "python311",
-  "cmake", 
+  "cmake",
   "pkg-config",
   "gcc",
   "boost",
-  "libx11",
-  "libxext",
-  "libopenblas"
+  "xorg.libX11",
+  "xorg.libXext",
+  "openblas"
 ]
 
 [phases.install]
