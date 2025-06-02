@@ -33,17 +33,39 @@ if not firebase_admin._apps:
         # Check if all required environment variables are set
         if all([firebase_config['project_id'], firebase_config['private_key'], firebase_config['client_email']]):
             cred = credentials.Certificate(firebase_config)
-            firebase_admin.initialize_app(cred)
+            # Initialize with storage bucket
+            firebase_admin.initialize_app(cred, {
+                'storageBucket': f"{firebase_config['project_id']}.appspot.com"
+            })
             print("✅ Firebase initialized successfully with environment variables")
+            print(f"🔥 Project ID: {firebase_config['project_id']}")
+            print(f"🔥 Storage Bucket: {firebase_config['project_id']}.appspot.com")
         else:
             # Fallback to credentials file for local development
             cred_path = os.environ.get('FIREBASE_CREDENTIALS', 'firebase-credentials.json')
             if os.path.exists(cred_path):
                 cred = credentials.Certificate(cred_path)
-                firebase_admin.initialize_app(cred)
+                # Try to get project_id from credentials file
+                with open(cred_path, 'r') as f:
+                    import json
+                    cred_data = json.load(f)
+                    project_id = cred_data.get('project_id')
+
+                firebase_admin.initialize_app(cred, {
+                    'storageBucket': f"{project_id}.appspot.com"
+                })
                 print("✅ Firebase initialized successfully with credentials file")
+                print(f"🔥 Project ID: {project_id}")
             else:
                 print("⚠️ Firebase credentials not found - continuing without Firebase")
+                print("🔍 Missing environment variables:")
+                for key, value in firebase_config.items():
+                    if not value:
+                        print(f"   - {key.upper()}: {value}")
+                print("📝 Required environment variables:")
+                print("   - FIREBASE_PROJECT_ID")
+                print("   - FIREBASE_PRIVATE_KEY")
+                print("   - FIREBASE_CLIENT_EMAIL")
     except Exception as e:
         print(f"❌ Firebase initialization error: {e}")
         # Continue without Firebase - we'll handle errors when trying to use it
@@ -107,10 +129,20 @@ def save_to_firebase(user_id, prediction_data, image_urls=None):
         image_urls: URLs to the stored processed images (can be string or dict)
     """
     try:
+        # Check if Firebase is initialized
+        if not firebase_admin._apps:
+            print("❌ Firebase not initialized - cannot save to Firestore")
+            return False
+
+        print(f"🔥 Attempting to save prediction for user: {user_id}")
+
         db = firestore.client()
 
+        # Create a copy to avoid modifying the original
+        data_to_save = prediction_data.copy()
+
         # Add metadata to the prediction data
-        prediction_data.update({
+        data_to_save.update({
             'timestamp': datetime.now(),
             'processed_image_urls': image_urls,
             'source': request.headers.get('User-Agent', 'unknown')
@@ -119,11 +151,19 @@ def save_to_firebase(user_id, prediction_data, image_urls=None):
         # Generate a unique document ID
         doc_id = f"{user_id}_{uuid.uuid4()}"
 
+        print(f"🔥 Saving to collection 'iris_predictions' with doc_id: {doc_id}")
+        print(f"🔥 Data keys: {list(data_to_save.keys())}")
+
         # Save to Firestore
-        db.collection('iris_predictions').document(doc_id).set(prediction_data)
+        db.collection('iris_predictions').document(doc_id).set(data_to_save)
+
+        print(f"✅ Successfully saved prediction to Firestore: {doc_id}")
         return True
     except Exception as e:
         print(f"❌ Firebase save error: {e}")
+        print(f"❌ Error type: {type(e).__name__}")
+        import traceback
+        print(f"❌ Full traceback: {traceback.format_exc()}")
         return False
 
 # Fonction de traitement d'image pour l'extraction d'iris
@@ -617,6 +657,62 @@ def predict_efficient():
 
     except Exception as e:
         return jsonify({'error': f'Erreur inattendue: {str(e)}'}), 500
+
+@prediction_bp.route('/test-firebase', methods=['GET'])
+def test_firebase():
+    """
+    Test Firebase connectivity and configuration
+    """
+    try:
+        # Check Firebase initialization
+        if not firebase_admin._apps:
+            return jsonify({
+                'firebase_initialized': False,
+                'error': 'Firebase not initialized',
+                'message': 'Check environment variables or credentials file'
+            }), 500
+
+        # Test Firestore connection
+        try:
+            db = firestore.client()
+            # Try to write a test document
+            test_doc = {
+                'test': True,
+                'timestamp': datetime.now(),
+                'message': 'Firebase connectivity test'
+            }
+            doc_ref = db.collection('test').document('connectivity_test')
+            doc_ref.set(test_doc)
+
+            # Try to read it back
+            doc = doc_ref.get()
+            firestore_status = 'connected' if doc.exists else 'write_failed'
+
+            # Clean up test document
+            doc_ref.delete()
+
+        except Exception as e:
+            firestore_status = f'error: {str(e)}'
+
+        # Test Storage connection
+        try:
+            bucket = storage.bucket()
+            storage_status = f'connected to bucket: {bucket.name}'
+        except Exception as e:
+            storage_status = f'error: {str(e)}'
+
+        return jsonify({
+            'firebase_initialized': True,
+            'firestore_status': firestore_status,
+            'storage_status': storage_status,
+            'app_name': firebase_admin._apps['[DEFAULT]'].name if '[DEFAULT]' in firebase_admin._apps else 'unknown'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'error': f'Firebase test failed: {str(e)}',
+            'firebase_initialized': bool(firebase_admin._apps)
+        }), 500
 
 
 @prediction_bp.route('/analyze-iris-enhanced', methods=['POST'])
