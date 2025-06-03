@@ -345,13 +345,10 @@ def load_model(model_name=None):
                 print(f"⚠️ Modèle {model_name} non trouvé à {model_path}")
                 # Continuer pour essayer les modèles par défaut
         
-        # Essayer de charger les modèles par défaut
+        # Essayer de charger les modèles par défaut (only the models actually uploaded)
         default_models = [
-            "iris_model.h5",
-            "iris_model.keras",
             "Efficient_10unfrozelayers.keras",
-            "mobileNet.h5",
-            "iris_model.joblib"
+            "mobileNet.h5"
         ]
         
         for model_file in default_models:
