@@ -127,6 +127,7 @@ if __name__ == '__main__':
         from models.download_models import ensure_models_downloaded
         print("🔄 Ensuring required models are downloaded...")
         print("📥 Downloading from GitHub Release + Google Drive...")
+        print("🔄 Force download attempt - checking file accessibility...")
         ensure_models_downloaded()
         print("✅ Model download check complete")
     except Exception as e:

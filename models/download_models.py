@@ -14,19 +14,13 @@ logger = logging.getLogger(__name__)
 # Model download URLs
 MODEL_URLS = {
     'shape_predictor_68_face_landmarks.dat': 'https://github.com/davisking/dlib-models/raw/master/shape_predictor_68_face_landmarks.dat.bz2',
+    # EfficientNet model from GitHub Release (direct file)
+    'Efficient_10unfrozelayers.keras': 'https://github.com/HadricheAymen/IrisProfilingPFA2025/releases/download/v1.0.0/Efficient_10unfrozelayers.keras'
 }
 
-# ZIP archives containing ML models
+# ZIP archives containing ML models (currently none - using direct downloads)
 ZIP_MODELS = {
-    'efficient_model.zip': {
-        'url': 'https://github.com/HadricheAymen/IrisProfilingPFA2025/releases/download/v1.0.0/efficient_model.zip',
-        'contains': ['Efficient_10unfrozelayers.keras']
-    },
-    # MobileNet model - will use Google Drive due to size constraints
-    # 'mobilenet_model.zip': {
-    #     'url': 'GOOGLE_DRIVE_DIRECT_LINK_HERE',
-    #     'contains': ['mobileNet.h5']
-    # }
+    # No ZIP files needed - using direct downloads
 }
 
 # Direct file downloads (for files hosted externally)
@@ -42,6 +36,11 @@ def download_file(url, filepath):
     """Download a file from URL to filepath"""
     try:
         logger.info(f"Downloading {filepath} from {url}")
+
+        # Special handling for Google Drive URLs
+        if 'drive.google.com' in url:
+            return download_google_drive_file(url, filepath)
+
         response = requests.get(url, stream=True)
         response.raise_for_status()
 
@@ -56,6 +55,48 @@ def download_file(url, filepath):
         return True
     except Exception as e:
         logger.error(f"Failed to download {filepath}: {e}")
+        return False
+
+
+def download_google_drive_file(url, filepath):
+    """Download a file from Google Drive with virus scan handling"""
+    try:
+        logger.info(f"Downloading from Google Drive: {filepath}")
+
+        session = requests.Session()
+        response = session.get(url, stream=True)
+
+        # Check if we got a virus scan warning page
+        if 'virus scan warning' in response.text.lower() or 'download anyway' in response.text.lower():
+            logger.info("Handling Google Drive virus scan warning...")
+
+            # Look for the download confirmation link
+            import re
+            confirm_pattern = r'href="(/uc\?export=download[^"]*)"'
+            match = re.search(confirm_pattern, response.text)
+
+            if match:
+                confirm_url = 'https://drive.google.com' + match.group(1).replace('&amp;', '&')
+                logger.info(f"Found confirmation URL: {confirm_url}")
+                response = session.get(confirm_url, stream=True)
+            else:
+                logger.warning("Could not find download confirmation link")
+                return False
+
+        response.raise_for_status()
+
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        logger.info(f"Successfully downloaded from Google Drive: {filepath}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to download from Google Drive {filepath}: {e}")
         return False
 
 def extract_bz2(compressed_path, output_path):
