@@ -653,10 +653,20 @@ def predict_mobilenet():
             # Ajouter la dimension de batch
             img_array = np.expand_dims(img_array, 0)
 
-            # Charger le modèle MobileNet si ce n'est pas déjà fait
+            # Charger le modèle MobileNet si ce n'est pas déjà fait (lazy loading)
             model_name = "mobileNet.h5"  # Use the actual filename in models directory
             if not hasattr(current_app, 'mobilenet_model'):
+                print("🔄 Lazy loading MobileNet model on first use...")
+
+                # Try to download model if it doesn't exist or is empty
+                from models.download_models import ensure_model_downloaded
+                model_path = os.path.join(os.path.dirname(__file__), '..', 'models', model_name)
+                if not os.path.exists(model_path) or os.path.getsize(model_path) == 0:
+                    print(f"📥 Downloading {model_name} on demand...")
+                    ensure_model_downloaded(model_name)
+
                 current_app.mobilenet_model = load_model(model_name)
+                print(f"✅ MobileNet model loaded: {type(current_app.mobilenet_model)}")
 
             # Check if we got a dummy model (string) instead of a real model
             if isinstance(current_app.mobilenet_model, str) and current_app.mobilenet_model == "dummy_model":
@@ -806,10 +816,20 @@ def predict_efficient():
             # Ajouter la dimension de batch
             img_array = np.expand_dims(img_array, 0)
 
-            # Charger le modèle EfficientNet si ce n'est pas déjà fait
+            # Charger le modèle EfficientNet si ce n'est pas déjà fait (lazy loading)
             model_name = "Efficient_10unfrozelayers.keras"
             if not hasattr(current_app, 'efficient_model'):
+                print("🔄 Lazy loading EfficientNet model on first use...")
+
+                # Try to download model if it doesn't exist or is empty
+                from models.download_models import ensure_model_downloaded
+                model_path = os.path.join(os.path.dirname(__file__), '..', 'models', model_name)
+                if not os.path.exists(model_path) or os.path.getsize(model_path) == 0:
+                    print(f"📥 Downloading {model_name} on demand...")
+                    ensure_model_downloaded(model_name)
+
                 current_app.efficient_model = load_model(model_name)
+                print(f"✅ EfficientNet model loaded: {type(current_app.efficient_model)}")
 
             # Check if we got a dummy model (string) instead of a real model
             if isinstance(current_app.efficient_model, str) and current_app.efficient_model == "dummy_model":

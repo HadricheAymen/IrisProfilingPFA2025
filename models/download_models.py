@@ -138,18 +138,64 @@ def extract_zip(zip_path, extract_to_dir):
         logger.error(f"Failed to extract {zip_path}: {e}")
         return False
 
+def ensure_model_downloaded(model_filename):
+    """Download a specific model on demand (lazy loading)"""
+    models_dir = Path(__file__).parent
+    filepath = models_dir / model_filename
+
+    print(f"🔍 Lazy loading model: {model_filename}")
+    print(f"📍 Path: {filepath}")
+
+    # Check if model exists and has content
+    if filepath.exists() and filepath.stat().st_size > 0:
+        size_mb = filepath.stat().st_size / (1024 * 1024)
+        print(f"✅ Model already exists: {size_mb:.2f} MB")
+        return True
+
+    print(f"📥 Downloading {model_filename} on demand...")
+
+    # Determine download source
+    if model_filename == 'mobileNet.h5':
+        url = DIRECT_DOWNLOADS.get(model_filename)
+        if url:
+            success = download_file(url, filepath)
+            if success and filepath.exists():
+                size_mb = filepath.stat().st_size / (1024 * 1024)
+                print(f"✅ Downloaded {model_filename}: {size_mb:.2f} MB")
+                return True
+
+    elif model_filename == 'Efficient_10unfrozelayers.keras':
+        url = MODEL_URLS.get(model_filename)
+        if url:
+            success = download_file(url, filepath)
+            if success and filepath.exists():
+                size_mb = filepath.stat().st_size / (1024 * 1024)
+                print(f"✅ Downloaded {model_filename}: {size_mb:.2f} MB")
+                return True
+
+    print(f"❌ Failed to download {model_filename}")
+    return False
+
+
 def ensure_models_downloaded():
-    """Ensure all required models are downloaded"""
+    """Ensure all required models are downloaded (startup - only essential models)"""
     models_dir = Path(__file__).parent
 
-    print(f"🔍 Starting model download check in: {models_dir}")
+    print(f"🔍 Starting essential model download check in: {models_dir}")
     print(f"📁 Directory exists: {models_dir.exists()}")
 
-    # Download individual model files
+    # Only download essential models at startup (shape predictor)
+    # ML models will be downloaded on first use (lazy loading)
+    essential_models = ['shape_predictor_68_face_landmarks.dat']
+
     for filename, url in MODEL_URLS.items():
+        if filename not in essential_models:
+            print(f"⏭️ Skipping {filename} - will download on first use (lazy loading)")
+            continue
+
         filepath = models_dir / filename
 
-        print(f"\n🔄 Checking {filename}:")
+        print(f"\n🔄 Checking essential model {filename}:")
         print(f"   📍 Path: {filepath}")
         print(f"   📁 Exists: {filepath.exists()}")
 
@@ -159,7 +205,7 @@ def ensure_models_downloaded():
 
         if not filepath.exists() or filepath.stat().st_size == 0:  # Also check for empty files
             print(f"   ⬇️ Downloading {filename} from {url}")
-            logger.info(f"Model {filename} not found or empty, downloading...")
+            logger.info(f"Essential model {filename} not found or empty, downloading...")
 
             if url.endswith('.bz2'):
                 # Handle compressed files (like dlib models)
@@ -183,7 +229,7 @@ def ensure_models_downloaded():
                     logger.warning(f"Failed to download {filename}, app may not work properly")
                     print(f"   ❌ Failed to download {filename}")
             else:
-                # Handle regular files (like .h5, .keras models)
+                # Handle regular files (shouldn't happen for essential models)
                 success = download_file(url, filepath)
                 if success:
                     logger.info(f"Successfully downloaded {filename}")
@@ -196,7 +242,7 @@ def ensure_models_downloaded():
                     logger.warning(f"Failed to download {filename}, app may not work properly")
                     print(f"   ❌ Failed to download {filename}")
         else:
-            logger.info(f"Model {filename} already exists")
+            logger.info(f"Essential model {filename} already exists")
             print(f"   ✅ {filename} already exists")
 
     # Download and extract ZIP archives containing multiple models
