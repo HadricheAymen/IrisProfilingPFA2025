@@ -42,7 +42,7 @@ app.register_blueprint(iris_bp, url_prefix='/api')
 app.register_blueprint(prediction_bp, url_prefix='/api')
 
 # Define class names for the EfficientNet model
-app.class_names = ['Flower-Jewel', 'Flower-Stream', 'Shaker-Stream', 'flower', 'jewel', 'shaker', 'shaker-jewel', 'stream']
+app.class_names = ['Flower-Jewel', 'Flower-Stream', 'Shaker-Stream', 'Flower', 'Jewel', 'Shaker', 'Shaker-Jewel', 'Stream']
 
 # Enhanced health check endpoint
 @app.route('/health', methods=['GET'])
