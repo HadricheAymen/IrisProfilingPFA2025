@@ -138,7 +138,7 @@ def extract_zip(zip_path, extract_to_dir):
         logger.error(f"Failed to extract {zip_path}: {e}")
         return False
 
-def ensure_model_downloaded(model_filename):
+def ensure_model_downloaded(model_filename, force_redownload=False):
     """Download a specific model on demand (lazy loading)"""
     models_dir = Path(__file__).parent
     filepath = models_dir / model_filename
@@ -146,11 +146,30 @@ def ensure_model_downloaded(model_filename):
     print(f"🔍 Lazy loading model: {model_filename}")
     print(f"📍 Path: {filepath}")
 
-    # Check if model exists and has content
-    if filepath.exists() and filepath.stat().st_size > 0:
+    # Check if model exists and has content (unless forcing redownload)
+    if not force_redownload and filepath.exists() and filepath.stat().st_size > 0:
         size_mb = filepath.stat().st_size / (1024 * 1024)
         print(f"✅ Model already exists: {size_mb:.2f} MB")
-        return True
+
+        # Additional validation for model files
+        if model_filename.endswith('.h5') or model_filename.endswith('.keras'):
+            try:
+                # Quick validation - check if file can be opened
+                with open(filepath, 'rb') as f:
+                    header = f.read(8)
+                    if len(header) >= 8:
+                        print(f"✅ Model file appears valid (header check passed)")
+                        return True
+                    else:
+                        print(f"⚠️ Model file appears corrupted (header too short)")
+            except Exception as e:
+                print(f"⚠️ Model file validation failed: {e}")
+        else:
+            return True
+
+    if force_redownload and filepath.exists():
+        print(f"🗑️ Removing corrupted model file: {filepath}")
+        filepath.unlink()
 
     print(f"📥 Downloading {model_filename} on demand...")
 
@@ -301,6 +320,56 @@ def ensure_models_downloaded():
                 logger.warning(f"❌ Failed to download {filename} directly")
         else:
             logger.info(f"Direct download: {filename} already exists")
+
+def force_redownload_all_models():
+    """Force redownload all models (for fixing corrupted files)"""
+    models_dir = Path(__file__).parent
+
+    print("🔄 Force redownloading all models...")
+
+    # List of all models to redownload
+    all_models = ['mobileNet.h5', 'Efficient_10unfrozelayers.keras', 'shape_predictor_68_face_landmarks.dat']
+
+    results = {}
+
+    for model_name in all_models:
+        print(f"\n🔄 Force redownloading {model_name}...")
+        try:
+            if model_name == 'shape_predictor_68_face_landmarks.dat':
+                # Handle compressed dlib model
+                filepath = models_dir / model_name
+                if filepath.exists():
+                    print(f"🗑️ Removing existing {model_name}")
+                    filepath.unlink()
+
+                url = MODEL_URLS.get(model_name)
+                if url and url.endswith('.bz2'):
+                    compressed_path = filepath.with_suffix(filepath.suffix + '.bz2')
+                    success = download_file(url, compressed_path)
+                    if success:
+                        extract_success = extract_bz2(compressed_path, filepath)
+                        if extract_success:
+                            os.remove(compressed_path)
+                            results[model_name] = "✅ Success"
+                        else:
+                            results[model_name] = "❌ Extract failed"
+                    else:
+                        results[model_name] = "❌ Download failed"
+                else:
+                    results[model_name] = "❌ No URL found"
+            else:
+                # Handle ML models
+                success = ensure_model_downloaded(model_name, force_redownload=True)
+                results[model_name] = "✅ Success" if success else "❌ Failed"
+        except Exception as e:
+            results[model_name] = f"❌ Error: {e}"
+            print(f"❌ Error redownloading {model_name}: {e}")
+
+    print("\n📊 Redownload Results:")
+    for model, status in results.items():
+        print(f"   {model}: {status}")
+
+    return results
 
 if __name__ == "__main__":
     ensure_models_downloaded()

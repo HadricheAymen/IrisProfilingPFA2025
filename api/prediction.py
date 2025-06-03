@@ -664,6 +664,17 @@ def predict_mobilenet():
                 if not os.path.exists(model_path) or os.path.getsize(model_path) == 0:
                     print(f"📥 Downloading {model_name} on demand...")
                     ensure_model_downloaded(model_name)
+                else:
+                    # Check if existing file is corrupted
+                    try:
+                        with open(model_path, 'rb') as f:
+                            header = f.read(8)
+                            if len(header) < 8:
+                                print(f"⚠️ {model_name} appears corrupted, forcing redownload...")
+                                ensure_model_downloaded(model_name, force_redownload=True)
+                    except Exception as e:
+                        print(f"⚠️ {model_name} validation failed, forcing redownload: {e}")
+                        ensure_model_downloaded(model_name, force_redownload=True)
 
                 current_app.mobilenet_model = load_model(model_name)
                 print(f"✅ MobileNet model loaded: {type(current_app.mobilenet_model)}")
@@ -827,6 +838,17 @@ def predict_efficient():
                 if not os.path.exists(model_path) or os.path.getsize(model_path) == 0:
                     print(f"📥 Downloading {model_name} on demand...")
                     ensure_model_downloaded(model_name)
+                else:
+                    # Check if existing file is corrupted
+                    try:
+                        with open(model_path, 'rb') as f:
+                            header = f.read(8)
+                            if len(header) < 8:
+                                print(f"⚠️ {model_name} appears corrupted, forcing redownload...")
+                                ensure_model_downloaded(model_name, force_redownload=True)
+                    except Exception as e:
+                        print(f"⚠️ {model_name} validation failed, forcing redownload: {e}")
+                        ensure_model_downloaded(model_name, force_redownload=True)
 
                 current_app.efficient_model = load_model(model_name)
                 print(f"✅ EfficientNet model loaded: {type(current_app.efficient_model)}")
@@ -1152,27 +1174,28 @@ def debug_models():
 def force_download():
     """Force download models manually for debugging"""
     try:
-        from models.download_models import ensure_models_downloaded
+        from models.download_models import force_redownload_all_models
 
-        print("🔄 Manual download triggered via API endpoint")
+        print("🔄 Manual FORCE download triggered via API endpoint")
         result = {
             'timestamp': datetime.now().isoformat(),
             'status': 'starting',
-            'message': 'Forcing model download...'
+            'message': 'Force redownloading all models (removing corrupted files)...'
         }
 
-        # Trigger download
-        ensure_models_downloaded()
+        # Force redownload all models
+        download_results = force_redownload_all_models()
 
         result['status'] = 'completed'
-        result['message'] = 'Download process completed. Check logs for details.'
+        result['message'] = 'Force download process completed.'
+        result['download_results'] = download_results
 
         return jsonify(result)
 
     except Exception as e:
         return jsonify({
             'status': 'error',
-            'message': f'Download failed: {str(e)}',
+            'message': f'Force download failed: {str(e)}',
             'timestamp': datetime.now().isoformat()
         }), 500
 
