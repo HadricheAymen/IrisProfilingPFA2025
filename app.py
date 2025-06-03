@@ -122,9 +122,18 @@ def root():
     })
 
 if __name__ == '__main__':
+    # Download required models on startup
+    try:
+        from models.download_models import ensure_models_downloaded
+        print("🔄 Ensuring required models are downloaded...")
+        ensure_models_downloaded()
+        print("✅ Model download check complete")
+    except Exception as e:
+        print(f"⚠️ Model download check failed: {e}")
+
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
     port = int(os.environ.get('PORT', 5000))
-    
+
     if debug_mode:
         app.run(debug=True, host='0.0.0.0', port=port)
     else:

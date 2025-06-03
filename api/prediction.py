@@ -371,6 +371,11 @@ def load_model(model_name=None):
             print(f"📁 Le répertoire {model_dir} n'existe pas")
         
         print("⚠️ Retour d'un modèle factice pour le développement.")
+        print(f"🔍 Debug: Attempted to load model: {model_name if model_name else 'default models'}")
+        print(f"🔍 Debug: Model directory exists: {os.path.exists(model_dir)}")
+        if os.path.exists(model_dir):
+            available_files = os.listdir(model_dir)
+            print(f"🔍 Debug: Available files: {available_files}")
         return "dummy_model"
     
     except Exception as e:
@@ -1023,6 +1028,78 @@ def list_user_predictions(user_id):
 
     except Exception as e:
         return jsonify({'error': f'Failed to list predictions: {str(e)}'}), 500
+
+
+@prediction_bp.route('/debug-models', methods=['GET'])
+def debug_models():
+    """
+    Debug endpoint to check model loading status and file availability
+    """
+    try:
+        import os
+        debug_info = {
+            'timestamp': datetime.now().isoformat(),
+            'environment': os.environ.get('ENVIRONMENT', 'unknown'),
+            'models_directory': {},
+            'model_loading_attempts': {},
+            'current_models': {}
+        }
+
+        # Check models directory
+        model_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
+        model_dir = os.path.abspath(model_dir)
+
+        debug_info['models_directory']['path'] = model_dir
+        debug_info['models_directory']['exists'] = os.path.exists(model_dir)
+
+        if os.path.exists(model_dir):
+            files = os.listdir(model_dir)
+            debug_info['models_directory']['files'] = files
+
+            # Check specific model files
+            for filename in ['Efficient_10unfrozelayers.keras', 'mobileNet.h5']:
+                file_path = os.path.join(model_dir, filename)
+                debug_info['models_directory'][filename] = {
+                    'exists': os.path.exists(file_path),
+                    'size_mb': round(os.path.getsize(file_path) / (1024*1024), 2) if os.path.exists(file_path) else 0
+                }
+
+        # Check current loaded models
+        debug_info['current_models']['main_model'] = hasattr(current_app, 'model')
+        debug_info['current_models']['efficient_model'] = hasattr(current_app, 'efficient_model')
+        debug_info['current_models']['mobilenet_model'] = hasattr(current_app, 'mobilenet_model')
+
+        if hasattr(current_app, 'mobilenet_model'):
+            debug_info['current_models']['mobilenet_type'] = type(current_app.mobilenet_model).__name__
+            debug_info['current_models']['mobilenet_is_dummy'] = current_app.mobilenet_model == "dummy_model"
+
+        # Test loading MobileNet model
+        debug_info['model_loading_attempts']['mobilenet'] = {}
+        try:
+            test_model = load_model('mobileNet.h5')
+            debug_info['model_loading_attempts']['mobilenet']['success'] = test_model != "dummy_model"
+            debug_info['model_loading_attempts']['mobilenet']['type'] = type(test_model).__name__
+            debug_info['model_loading_attempts']['mobilenet']['is_dummy'] = test_model == "dummy_model"
+        except Exception as e:
+            debug_info['model_loading_attempts']['mobilenet']['error'] = str(e)
+
+        # Test loading EfficientNet model
+        debug_info['model_loading_attempts']['efficient'] = {}
+        try:
+            test_model = load_model('Efficient_10unfrozelayers.keras')
+            debug_info['model_loading_attempts']['efficient']['success'] = test_model != "dummy_model"
+            debug_info['model_loading_attempts']['efficient']['type'] = type(test_model).__name__
+            debug_info['model_loading_attempts']['efficient']['is_dummy'] = test_model == "dummy_model"
+        except Exception as e:
+            debug_info['model_loading_attempts']['efficient']['error'] = str(e)
+
+        return jsonify(debug_info)
+
+    except Exception as e:
+        return jsonify({
+            'error': f'Debug endpoint failed: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 
 @prediction_bp.route('/test-firebase', methods=['GET'])

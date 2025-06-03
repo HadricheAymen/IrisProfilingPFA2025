@@ -12,7 +12,10 @@ logger = logging.getLogger(__name__)
 
 # Model download URLs
 MODEL_URLS = {
-    'shape_predictor_68_face_landmarks.dat': 'https://github.com/davisking/dlib-models/raw/master/shape_predictor_68_face_landmarks.dat.bz2'
+    'shape_predictor_68_face_landmarks.dat': 'https://github.com/davisking/dlib-models/raw/master/shape_predictor_68_face_landmarks.dat.bz2',
+    # Add your ML models here - you'll need to host them somewhere accessible
+    # 'Efficient_10unfrozelayers.keras': 'YOUR_DOWNLOAD_URL_HERE',
+    # 'mobileNet.h5': 'YOUR_DOWNLOAD_URL_HERE'
 }
 
 def download_file(url, filepath):
