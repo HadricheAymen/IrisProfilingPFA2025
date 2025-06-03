@@ -151,8 +151,9 @@ profilingiris-firebase-adminsdk-fbsvc-*.json
 # Large model files (downloaded at runtime)
 models/*.dat
 models/*.joblib
+models/*.zip
 
-# Allow specific deployed models
+# Allow specific deployed models (these will be downloaded from external sources)
 !models/Efficient_10unfrozelayers.keras
 !models/mobileNet.h5
 

@@ -660,10 +660,14 @@ def predict_mobilenet():
 
             # Check if we got a dummy model (string) instead of a real model
             if isinstance(current_app.mobilenet_model, str) and current_app.mobilenet_model == "dummy_model":
-                # Return dummy predictions for development/testing
+                # Return realistic dummy predictions for development/testing
                 # Create a dummy array with 8 classes (matching your class_names)
-                dummy_predictions = np.zeros(8)
-                dummy_predictions[0] = 0.7  # Set highest probability to first class
+                dummy_predictions = np.random.dirichlet(np.ones(8) * 2)  # More realistic distribution
+                # Ensure one class has higher probability
+                max_idx = np.random.randint(0, 8)
+                dummy_predictions[max_idx] = max(dummy_predictions[max_idx], 0.4)
+                # Normalize to sum to 1
+                dummy_predictions = dummy_predictions / dummy_predictions.sum()
                 return dummy_predictions, processed_image_for_storage
 
             if current_app.mobilenet_model is None:
