@@ -74,17 +74,16 @@ if not firebase_admin._apps:
         print(f"❌ Firebase initialization error: {e}")
         # Continue without Firebase - we'll handle errors when trying to use it
 
-def save_processed_image_to_storage(processed_image, user_id, image_type="single"):
+def convert_image_to_base64(processed_image, image_type="single"):
     """
-    Save processed image to Firebase Storage
+    Convert processed image to base64 string for Firestore storage
 
     Args:
         processed_image: Processed image array (numpy array)
-        user_id: User ID from the request
         image_type: Type of image ("single", "left", "right")
 
     Returns:
-        str: Public URL of the uploaded image or None if failed
+        dict: Dictionary containing base64 image data and metadata, or None if failed
     """
     try:
         # Convert numpy array to PIL Image
@@ -103,34 +102,41 @@ def save_processed_image_to_storage(processed_image, user_id, image_type="single
 
         # Convert to bytes
         img_byte_arr = io.BytesIO()
-        pil_image.save(img_byte_arr, format='JPEG', quality=85)
+        pil_image.save(img_byte_arr, format='JPEG', quality=75)  # Reduced quality for smaller size
         img_byte_arr.seek(0)
 
-        # Generate unique filename
+        # Convert to base64
+        img_base64 = base64.b64encode(img_byte_arr.getvalue()).decode('utf-8')
+
+        # Generate metadata
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"processed_images/{user_id}/{timestamp}_{image_type}_{uuid.uuid4().hex[:8]}.jpg"
+        image_id = f"{timestamp}_{image_type}_{uuid.uuid4().hex[:8]}"
 
-        # Upload to Firebase Storage
-        bucket = storage.bucket()
-        blob = bucket.blob(filename)
-        blob.upload_from_file(img_byte_arr, content_type='image/jpeg')
-
-        # Make the blob publicly accessible
-        blob.make_public()
-
-        return blob.public_url
+        return {
+            'image_data': img_base64,
+            'image_type': image_type,
+            'image_id': image_id,
+            'format': 'JPEG',
+            'quality': 75,
+            'size_bytes': len(img_base64),
+            'dimensions': {
+                'width': pil_image.width,
+                'height': pil_image.height
+            },
+            'timestamp': datetime.now()
+        }
     except Exception as e:
-        print(f"❌ Firebase Storage upload error: {e}")
+        print(f"❌ Image to base64 conversion error: {e}")
         return None
 
-def save_to_firebase(user_id, prediction_data, image_urls=None):
+def save_to_firebase(user_id, prediction_data, image_data=None):
     """
-    Save prediction results to Firebase Firestore
+    Save prediction results to Firebase Firestore with embedded image data
 
     Args:
         user_id: User ID from the request
         prediction_data: Prediction results
-        image_urls: URLs to the stored processed images (can be string or dict)
+        image_data: Base64 encoded image data (dict or list of dicts)
     """
     try:
         # Check if Firebase is initialized
@@ -148,7 +154,7 @@ def save_to_firebase(user_id, prediction_data, image_urls=None):
         # Add metadata to the prediction data
         data_to_save.update({
             'timestamp': datetime.now(),
-            'processed_image_urls': image_urls,
+            'processed_images': image_data,  # Store image data directly in Firestore
             'source': request.headers.get('User-Agent', 'unknown')
         })
 
@@ -157,6 +163,14 @@ def save_to_firebase(user_id, prediction_data, image_urls=None):
 
         print(f"🔥 Saving to collection 'iris_predictions' with doc_id: {doc_id}")
         print(f"🔥 Data keys: {list(data_to_save.keys())}")
+
+        # Check document size (Firestore limit is 1MB)
+        import json
+        doc_size = len(json.dumps(data_to_save, default=str))
+        print(f"🔥 Document size: {doc_size / 1024:.2f} KB")
+
+        if doc_size > 1000000:  # 1MB limit
+            print("⚠️ Warning: Document size exceeds 1MB, this may fail")
 
         # Save to Firestore
         db.collection('iris_predictions').document(doc_id).set(data_to_save)
@@ -505,14 +519,16 @@ def predict():
             # Add user_id to prediction results
             prediction_results['user_id'] = user_id
 
-            # Save processed image to Firebase Storage
-            image_url = save_processed_image_to_storage(processed_image, user_id, "single")
+            # Convert processed image to base64 for Firestore storage
+            image_data = convert_image_to_base64(processed_image, "single")
 
             # Save to Firebase
-            firebase_success = save_to_firebase(user_id, prediction_results, image_url)
+            firebase_success = save_to_firebase(user_id, prediction_results, image_data)
             prediction_results['saved_to_firebase'] = firebase_success
-            if image_url:
-                prediction_results['processed_image_url'] = image_url
+            if image_data:
+                prediction_results['image_stored_in_firestore'] = True
+                prediction_results['image_id'] = image_data['image_id']
+                prediction_results['image_size_kb'] = round(image_data['size_bytes'] / 1024, 2)
         
         # Return results
         return jsonify(prediction_results)
@@ -639,21 +655,31 @@ def predict_efficient():
             # Add user_id to prediction results
             prediction_results['user_id'] = user_id
 
-            # Save processed images to Firebase Storage
-            image_urls = {}
-            left_url = save_processed_image_to_storage(processed_img1, user_id, "left")
-            right_url = save_processed_image_to_storage(processed_img2, user_id, "right")
+            # Convert processed images to base64 for Firestore storage
+            image_data = {}
+            left_image_data = convert_image_to_base64(processed_img1, "left")
+            right_image_data = convert_image_to_base64(processed_img2, "right")
 
-            if left_url:
-                image_urls['left'] = left_url
-            if right_url:
-                image_urls['right'] = right_url
+            if left_image_data:
+                image_data['left'] = left_image_data
+            if right_image_data:
+                image_data['right'] = right_image_data
 
             # Save to Firebase
-            firebase_success = save_to_firebase(user_id, prediction_results, image_urls)
+            firebase_success = save_to_firebase(user_id, prediction_results, image_data)
             prediction_results['saved_to_firebase'] = firebase_success
-            if image_urls:
-                prediction_results['processed_image_urls'] = image_urls
+            if image_data:
+                prediction_results['images_stored_in_firestore'] = True
+                prediction_results['image_ids'] = {
+                    'left': left_image_data['image_id'] if left_image_data else None,
+                    'right': right_image_data['image_id'] if right_image_data else None
+                }
+                total_size_kb = 0
+                if left_image_data:
+                    total_size_kb += left_image_data['size_bytes']
+                if right_image_data:
+                    total_size_kb += right_image_data['size_bytes']
+                prediction_results['total_images_size_kb'] = round(total_size_kb / 1024, 2)
 
         # Retourner les résultats
         return jsonify(prediction_results)
@@ -697,6 +723,124 @@ def check_environment():
         'firebase_initialized': bool(firebase_admin._apps)
     })
 
+@prediction_bp.route('/get-image/<user_id>/<image_id>', methods=['GET'])
+def get_image_from_firestore(user_id, image_id):
+    """
+    Retrieve a specific image from Firestore by user_id and image_id
+    Returns the image as base64 or as a downloadable file
+    """
+    try:
+        # Check if Firebase is initialized
+        if not firebase_admin._apps:
+            return jsonify({'error': 'Firebase not initialized'}), 500
+
+        db = firestore.client()
+
+        # Query for documents containing the specific image_id
+        predictions = db.collection('iris_predictions').where('user_id', '==', user_id).stream()
+
+        for prediction in predictions:
+            data = prediction.to_dict()
+            processed_images = data.get('processed_images', {})
+
+            # Check if it's a single image
+            if isinstance(processed_images, dict) and processed_images.get('image_id') == image_id:
+                return jsonify({
+                    'image_data': processed_images['image_data'],
+                    'image_metadata': {
+                        'image_id': processed_images['image_id'],
+                        'image_type': processed_images['image_type'],
+                        'format': processed_images['format'],
+                        'dimensions': processed_images['dimensions'],
+                        'size_bytes': processed_images['size_bytes']
+                    }
+                })
+
+            # Check if it's multiple images (left/right)
+            for img_type, img_data in processed_images.items():
+                if isinstance(img_data, dict) and img_data.get('image_id') == image_id:
+                    return jsonify({
+                        'image_data': img_data['image_data'],
+                        'image_metadata': {
+                            'image_id': img_data['image_id'],
+                            'image_type': img_data['image_type'],
+                            'format': img_data['format'],
+                            'dimensions': img_data['dimensions'],
+                            'size_bytes': img_data['size_bytes']
+                        }
+                    })
+
+        return jsonify({'error': 'Image not found'}), 404
+
+    except Exception as e:
+        return jsonify({'error': f'Failed to retrieve image: {str(e)}'}), 500
+
+
+@prediction_bp.route('/list-predictions/<user_id>', methods=['GET'])
+def list_user_predictions(user_id):
+    """
+    List all predictions for a specific user with image metadata
+    """
+    try:
+        # Check if Firebase is initialized
+        if not firebase_admin._apps:
+            return jsonify({'error': 'Firebase not initialized'}), 500
+
+        db = firestore.client()
+
+        # Get all predictions for the user
+        predictions = db.collection('iris_predictions').where('user_id', '==', user_id).stream()
+
+        result = []
+        for prediction in predictions:
+            data = prediction.to_dict()
+
+            # Extract basic prediction info
+            pred_info = {
+                'document_id': prediction.id,
+                'timestamp': data.get('timestamp'),
+                'prediction': data.get('prediction'),
+                'confidence': data.get('confidence'),
+                'user_id': data.get('user_id'),
+                'images': []
+            }
+
+            # Extract image metadata (without the actual image data)
+            processed_images = data.get('processed_images', {})
+            if isinstance(processed_images, dict):
+                if 'image_id' in processed_images:
+                    # Single image
+                    pred_info['images'].append({
+                        'image_id': processed_images['image_id'],
+                        'image_type': processed_images['image_type'],
+                        'format': processed_images['format'],
+                        'dimensions': processed_images['dimensions'],
+                        'size_kb': round(processed_images['size_bytes'] / 1024, 2)
+                    })
+                else:
+                    # Multiple images (left/right)
+                    for img_type, img_data in processed_images.items():
+                        if isinstance(img_data, dict) and 'image_id' in img_data:
+                            pred_info['images'].append({
+                                'image_id': img_data['image_id'],
+                                'image_type': img_data['image_type'],
+                                'format': img_data['format'],
+                                'dimensions': img_data['dimensions'],
+                                'size_kb': round(img_data['size_bytes'] / 1024, 2)
+                            })
+
+            result.append(pred_info)
+
+        return jsonify({
+            'user_id': user_id,
+            'total_predictions': len(result),
+            'predictions': result
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'Failed to list predictions: {str(e)}'}), 500
+
+
 @prediction_bp.route('/test-firebase', methods=['GET'])
 def test_firebase():
     """
@@ -734,7 +878,7 @@ def test_firebase():
         except Exception as e:
             firestore_status = f'error: {str(e)}'
 
-        # Test Storage connection
+        # Test Storage connection (still available for other uses)
         try:
             bucket = storage.bucket()
             storage_status = f'connected to bucket: {bucket.name}'
@@ -745,6 +889,7 @@ def test_firebase():
             'firebase_initialized': True,
             'firestore_status': firestore_status,
             'storage_status': storage_status,
+            'storage_note': 'Images now stored in Firestore, not Storage',
             'app_name': firebase_admin._apps['[DEFAULT]'].name if '[DEFAULT]' in firebase_admin._apps else 'unknown'
         })
 
