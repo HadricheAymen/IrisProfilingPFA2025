@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Corrupted Models</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #dc3545;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #c82333;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Fix Corrupted Models</h1>
+        <p><strong>Railway App:</strong> https://carefree-warmth-production.up.railway.app</p>
+        
+        <div class="warning">
+            <strong>⚠️ Warning:</strong> This will force redownload all models, removing corrupted files. 
+            This process may take several minutes and will temporarily make the API unavailable.
+        </div>
+
+        <button id="forceDownloadBtn" onclick="forceDownloadModels()">
+            🔄 Force Redownload All Models
+        </button>
+        
+        <button onclick="checkHealth()">
+            🏥 Check Health Status
+        </button>
+        
+        <button onclick="testModels()">
+            🧪 Test Model Loading
+        </button>
+        
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://carefree-warmth-production.up.railway.app';
+
+        async function forceDownloadModels() {
+            const resultDiv = document.getElementById('result');
+            const btn = document.getElementById('forceDownloadBtn');
+            
+            btn.disabled = true;
+            btn.textContent = '🔄 Downloading...';
+            
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🔄 Force downloading all models...\nThis may take several minutes...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/force-download`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    
+                    let resultText = `✅ Force Download Results:\n\n`;
+                    resultText += `Status: ${data.status}\n`;
+                    resultText += `Message: ${data.message}\n`;
+                    resultText += `Timestamp: ${data.timestamp}\n\n`;
+                    
+                    if (data.download_results) {
+                        resultText += `📊 Download Results:\n`;
+                        for (const [model, status] of Object.entries(data.download_results)) {
+                            resultText += `   ${model}: ${status}\n`;
+                        }
+                    }
+                    
+                    resultText += `\n🎉 Models should now be fixed! Try testing the endpoints.`;
+                    resultDiv.textContent = resultText;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Force Download Failed:\n${error.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔄 Force Redownload All Models';
+            }
+        }
+
+        async function checkHealth() {
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🔄 Checking health status...';
+
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Health Check:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Health Check Failed:\n${error.message}`;
+            }
+        }
+
+        async function testModels() {
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🔄 Testing model loading...';
+
+            try {
+                const response = await fetch(`${API_BASE}/debug`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    
+                    let resultText = `🧪 Model Loading Test:\n\n`;
+                    
+                    if (data.model_loading_attempts) {
+                        resultText += `📊 Model Loading Results:\n`;
+                        for (const [model, result] of Object.entries(data.model_loading_attempts)) {
+                            resultText += `   ${model}:\n`;
+                            resultText += `     Success: ${result.success || 'N/A'}\n`;
+                            resultText += `     Type: ${result.type || 'N/A'}\n`;
+                            resultText += `     Is Dummy: ${result.is_dummy || 'N/A'}\n`;
+                            if (result.error) {
+                                resultText += `     Error: ${result.error}\n`;
+                            }
+                            resultText += `\n`;
+                        }
+                    }
+                    
+                    resultDiv.textContent = resultText;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Model Test Failed:\n${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

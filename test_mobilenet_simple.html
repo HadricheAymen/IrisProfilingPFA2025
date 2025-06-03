@@ -76,6 +76,7 @@
             <input type="file" id="image2" accept="image/*">
         </div>
         
+        <button onclick="forceDownloadModels()" style="background-color: #dc3545;">🔧 Fix Corrupted Models</button>
         <button onclick="testMobileNet()">Test MobileNet</button>
         <button onclick="testEfficientNet()">Compare with EfficientNet</button>
         
@@ -84,6 +85,49 @@
 
     <script>
         const API_BASE = 'https://carefree-warmth-production.up.railway.app';
+
+        async function forceDownloadModels() {
+            const resultDiv = document.getElementById('result');
+
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🔧 Force downloading all models...\nThis will fix corrupted files and may take several minutes...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/force-download`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+
+                    let resultText = `✅ Force Download Completed!\n\n`;
+                    resultText += `Status: ${data.status}\n`;
+                    resultText += `Message: ${data.message}\n`;
+                    resultText += `Timestamp: ${data.timestamp}\n\n`;
+
+                    if (data.download_results) {
+                        resultText += `📊 Download Results:\n`;
+                        for (const [model, status] of Object.entries(data.download_results)) {
+                            resultText += `   ${model}: ${status}\n`;
+                        }
+                        resultText += `\n🎉 Models should now be fixed! Try testing the endpoints below.`;
+                    }
+
+                    resultDiv.textContent = resultText;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Force Download Failed:\n${error.message}\n\nTry refreshing the page and clicking the button again.`;
+            }
+        }
 
         async function testMobileNet() {
             const resultDiv = document.getElementById('result');
