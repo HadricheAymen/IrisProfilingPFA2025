@@ -31,8 +31,8 @@ ZIP_MODELS = {
 
 # Direct file downloads (for files hosted externally)
 DIRECT_DOWNLOADS = {
-    # MobileNet model from Google Drive (temporarily disabled until you upload to Google Drive)
-    # 'mobileNet.h5': 'https://drive.google.com/uc?export=download&id=YOUR_FILE_ID_HERE'
+    # MobileNet model from Google Drive
+    'mobileNet.h5': 'https://drive.google.com/uc?export=download&id=1mayaqjO2xqegcwwAal8V8a8NAO4fDnx4'
 }
 
 # Fallback: If models can't be downloaded, use dummy models
