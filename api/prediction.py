@@ -164,15 +164,46 @@ def save_to_firebase(user_id, prediction_data, image_data=None):
         print(f"🔥 Saving to collection 'iris_predictions' with doc_id: {doc_id}")
         print(f"🔥 Data keys: {list(data_to_save.keys())}")
 
-        # Check document size (Firestore limit is 1MB)
-        import json
-        doc_size = len(json.dumps(data_to_save, default=str))
-        print(f"🔥 Document size: {doc_size / 1024:.2f} KB")
+        # Ensure all float values are properly preserved
+        def preserve_float_precision(obj):
+            """Recursively ensure float values maintain their precision"""
+            if isinstance(obj, dict):
+                return {k: preserve_float_precision(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [preserve_float_precision(item) for item in obj]
+            elif isinstance(obj, np.float64) or isinstance(obj, np.float32):
+                return float(obj)  # Convert numpy floats to Python floats
+            elif isinstance(obj, float):
+                return obj  # Keep Python floats as-is
+            else:
+                return obj
 
-        if doc_size > 1000000:  # 1MB limit
-            print("⚠️ Warning: Document size exceeds 1MB, this may fail")
+        # Apply float precision preservation
+        data_to_save = preserve_float_precision(data_to_save)
 
-        # Save to Firestore
+        # Check document size (Firestore limit is 1MB) - use a safer size calculation
+        try:
+            import json
+            # Use a custom serializer that handles datetime objects
+            def json_serializer(obj):
+                if hasattr(obj, 'isoformat'):  # datetime objects
+                    return obj.isoformat()
+                elif isinstance(obj, (np.float64, np.float32)):
+                    return float(obj)
+                elif isinstance(obj, (np.int64, np.int32)):
+                    return int(obj)
+                else:
+                    return str(obj)
+
+            doc_size = len(json.dumps(data_to_save, default=json_serializer))
+            print(f"🔥 Document size: {doc_size / 1024:.2f} KB")
+
+            if doc_size > 1000000:  # 1MB limit
+                print("⚠️ Warning: Document size exceeds 1MB, this may fail")
+        except Exception as e:
+            print(f"⚠️ Could not calculate document size: {e}")
+
+        # Save to Firestore with explicit float preservation
         db.collection('iris_predictions').document(doc_id).set(data_to_save)
 
         print(f"✅ Successfully saved prediction to Firestore: {doc_id}")
@@ -418,11 +449,13 @@ def make_prediction(model, processed_image):
             # Créer un dictionnaire avec les classes et leurs probabilités
             class_predictions = {}
             for i, class_name in enumerate(class_names):
-                class_predictions[class_name] = float(predictions[0][i])
-            
+                # Ensure proper float conversion with full precision
+                prob_value = float(predictions[0][i])
+                class_predictions[class_name] = round(prob_value, 6)  # Keep 6 decimal places
+
             return {
                 "prediction": str(class_names[predicted_class]),
-                "confidence": confidence,
+                "confidence": round(float(confidence), 6),  # Ensure confidence is also properly formatted
                 "class_predictions": class_predictions
             }
         else:
@@ -446,11 +479,13 @@ def make_prediction(model, processed_image):
                 # Créer un dictionnaire avec les classes et leurs probabilités
                 class_predictions = {}
                 for i, class_name in enumerate(class_names):
-                    class_predictions[class_name] = float(probas[i])
-                
+                    # Ensure proper float conversion with full precision
+                    prob_value = float(probas[i])
+                    class_predictions[class_name] = round(prob_value, 6)  # Keep 6 decimal places
+
                 return {
                     "prediction": str(class_names[predicted_class]),
-                    "confidence": confidence,
+                    "confidence": round(float(confidence), 6),  # Ensure confidence is also properly formatted
                     "class_predictions": class_predictions
                 }
             else:
@@ -630,12 +665,14 @@ def predict_mobilenet():
         # Trouver la classe avec la plus haute probabilité moyenne
         predicted_class_index = np.argmax(avg_predictions)
         predicted_class = class_names[predicted_class_index]
-        confidence = float(avg_predictions[predicted_class_index])
+        confidence = round(float(avg_predictions[predicted_class_index]), 6)
 
         # Créer un dictionnaire avec les classes et leurs probabilités moyennes
         class_predictions = {}
         for i, class_name in enumerate(class_names):
-            class_predictions[class_name] = float(avg_predictions[i])
+            # Ensure proper float conversion with full precision
+            prob_value = float(avg_predictions[i])
+            class_predictions[class_name] = round(prob_value, 6)  # Keep 6 decimal places
 
         # Prepare prediction results
         prediction_results = {
@@ -782,12 +819,14 @@ def predict_efficient():
         # Trouver la classe avec la plus haute probabilité
         predicted_class_index = np.argmax(avg_predictions)
         predicted_class = class_names[predicted_class_index]
-        confidence = float(avg_predictions[predicted_class_index])
-        
+        confidence = round(float(avg_predictions[predicted_class_index]), 6)
+
         # Créer un dictionnaire avec les classes et leurs probabilités moyennes
         class_predictions = {}
         for i, class_name in enumerate(class_names):
-            class_predictions[class_name] = float(avg_predictions[i])
+            # Ensure proper float conversion with full precision
+            prob_value = float(avg_predictions[i])
+            class_predictions[class_name] = round(prob_value, 6)  # Keep 6 decimal places
 
         # Prepare prediction results
         prediction_results = {
