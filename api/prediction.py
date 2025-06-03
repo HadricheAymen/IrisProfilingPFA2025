@@ -389,18 +389,13 @@ def load_model(model_name=None):
         else:
             print(f"📁 Le répertoire {model_dir} n'existe pas")
         
-        # Don't fall back to dummy model - raise an error instead
-        error_msg = f"❌ No valid models found in {model_dir}"
-        if model_name:
-            error_msg = f"❌ Failed to load specific model: {model_name}"
-
+        print("⚠️ Retour d'un modèle factice pour le développement.")
         print(f"🔍 Debug: Attempted to load model: {model_name if model_name else 'default models'}")
         print(f"🔍 Debug: Model directory exists: {os.path.exists(model_dir)}")
         if os.path.exists(model_dir):
             available_files = os.listdir(model_dir)
             print(f"🔍 Debug: Available files: {available_files}")
-
-        raise FileNotFoundError(error_msg)
+        return "dummy_model"
     
     except Exception as e:
         print(f"❌ Erreur lors du chargement du modèle: {e}")
@@ -658,19 +653,21 @@ def predict_mobilenet():
             # Ajouter la dimension de batch
             img_array = np.expand_dims(img_array, 0)
 
-            # Charger le modèle MobileNet si ce n'est pas déjà fait (direct loading from repository)
+            # Charger le modèle MobileNet si ce n'est pas déjà fait (with dummy fallback)
             model_name = "mobileNet.h5"  # Use the actual filename in models directory
             if not hasattr(current_app, 'mobilenet_model'):
                 print("🔄 Loading MobileNet model from repository...")
 
-                # Load directly from repository (no downloads needed)
+                # Load directly from repository with fallback to dummy
                 model_path = os.path.join(os.path.dirname(__file__), '..', 'models', model_name)
-                if not os.path.exists(model_path):
-                    raise FileNotFoundError(f"Model file not found in repository: {model_path}")
-
-                print(f"📁 Loading model from: {model_path}")
-                current_app.mobilenet_model = load_model(model_name)
-                print(f"✅ MobileNet model loaded: {type(current_app.mobilenet_model)}")
+                if os.path.exists(model_path):
+                    print(f"📁 Loading model from: {model_path}")
+                    current_app.mobilenet_model = load_model(model_name)
+                    print(f"✅ MobileNet model loaded: {type(current_app.mobilenet_model)}")
+                else:
+                    print(f"⚠️ Model file not found: {model_path}")
+                    print("⚠️ Falling back to dummy model for development")
+                    current_app.mobilenet_model = "dummy_model"
 
             # Check if we got a dummy model (string) instead of a real model
             if isinstance(current_app.mobilenet_model, str) and current_app.mobilenet_model == "dummy_model":
@@ -820,19 +817,21 @@ def predict_efficient():
             # Ajouter la dimension de batch
             img_array = np.expand_dims(img_array, 0)
 
-            # Charger le modèle EfficientNet si ce n'est pas déjà fait (direct loading from repository)
+            # Charger le modèle EfficientNet si ce n'est pas déjà fait (with dummy fallback)
             model_name = "Efficient_10unfrozelayers.keras"
             if not hasattr(current_app, 'efficient_model'):
                 print("🔄 Loading EfficientNet model from repository...")
 
-                # Load directly from repository (no downloads needed)
+                # Load directly from repository with fallback to dummy
                 model_path = os.path.join(os.path.dirname(__file__), '..', 'models', model_name)
-                if not os.path.exists(model_path):
-                    raise FileNotFoundError(f"Model file not found in repository: {model_path}")
-
-                print(f"📁 Loading model from: {model_path}")
-                current_app.efficient_model = load_model(model_name)
-                print(f"✅ EfficientNet model loaded: {type(current_app.efficient_model)}")
+                if os.path.exists(model_path):
+                    print(f"📁 Loading model from: {model_path}")
+                    current_app.efficient_model = load_model(model_name)
+                    print(f"✅ EfficientNet model loaded: {type(current_app.efficient_model)}")
+                else:
+                    print(f"⚠️ Model file not found: {model_path}")
+                    print("⚠️ Falling back to dummy model for development")
+                    current_app.efficient_model = "dummy_model"
 
             # Check if we got a dummy model (string) instead of a real model
             if isinstance(current_app.efficient_model, str) and current_app.efficient_model == "dummy_model":
