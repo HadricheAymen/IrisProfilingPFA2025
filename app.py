@@ -58,7 +58,8 @@ def health_check():
         # Check if models are loaded
         models_status = {
             'main_model': hasattr(app, 'model'),
-            'efficient_model': hasattr(app, 'efficient_model')
+            'efficient_model': hasattr(app, 'efficient_model'),
+            'mobilenet_model': hasattr(app, 'mobilenet_model')
         }
 
         # Check Firebase connection
@@ -115,7 +116,8 @@ def root():
             'health': '/health',
             'iris_extraction': '/api/extract-iris',
             'prediction': '/api/predict',
-            'efficient_prediction': '/api/predict-efficient'
+            'efficient_prediction': '/api/predict-efficient',
+            'mobilenet_prediction': '/api/predict-mobilenet'
         }
     })
 

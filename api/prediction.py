@@ -319,6 +319,7 @@ def load_model(model_name=None):
             "iris_model.h5",
             "iris_model.keras",
             "Efficient_10unfrozelayers.keras",
+            "mobileNet.h5",
             "iris_model.joblib"
         ]
         
@@ -536,15 +537,162 @@ def predict():
     except Exception as e:
         return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
 
+@prediction_bp.route('/predict-mobilenet', methods=['POST'])
+def predict_mobilenet():
+    """
+    Endpoint pour faire une prédiction avec le modèle MobileNet.
+
+    Accepte deux images via une requête POST multipart/form-data.
+    Traite les deux images, fait une prédiction pour chacune, calcule la moyenne
+    et retourne un résultat unique.
+
+    Returns:
+        JSON: Résultats de la prédiction moyenne ou message d'erreur
+    """
+    try:
+        # Vérifier si les images ont été envoyées
+        if 'image1' not in request.files or 'image2' not in request.files:
+            return jsonify({'error': 'Deux images sont requises (image1 et image2)'}), 400
+
+        file1 = request.files['image1']
+        file2 = request.files['image2']
+
+        # Get user_id from form data
+        user_id = request.form.get('user_id')
+
+        if file1.filename == '' or file2.filename == '':
+            return jsonify({'error': 'Aucun fichier sélectionné pour une ou les deux images'}), 400
+
+        # Vérifier l'extension des fichiers
+        allowed_extensions = {'.jpg', '.jpeg', '.png', '.bmp'}
+        file1_ext = os.path.splitext(file1.filename.lower())[1]
+        file2_ext = os.path.splitext(file2.filename.lower())[1]
+
+        if file1_ext not in allowed_extensions or file2_ext not in allowed_extensions:
+            return jsonify({'error': f'Format de fichier non supporté. Formats acceptés: {", ".join(allowed_extensions)}'}), 400
+
+        # Fonction pour traiter une image et obtenir les prédictions
+        def process_and_predict(file, image_type="unknown"):
+            # Lire les données de l'image et convertir en image PIL
+            image_data = file.read()
+            image = Image.open(io.BytesIO(image_data))
+
+            # Prétraiter l'image pour MobileNet (redimensionner à la taille attendue)
+            target_size = (224, 224)  # Taille standard pour MobileNet
+            image = image.resize(target_size)
+
+            # Convertir en array pour la prédiction
+            img_array = np.array(image)
+
+            # Normaliser l'image si nécessaire (valeurs entre 0 et 1)
+            if img_array.max() > 1.0:
+                img_array = img_array / 255.0
+
+            # Store processed image for Firebase upload (before adding batch dimension)
+            processed_image_for_storage = img_array.copy()
+
+            # Ajouter la dimension de batch
+            img_array = np.expand_dims(img_array, 0)
+
+            # Charger le modèle MobileNet si ce n'est pas déjà fait
+            model_name = "mobileNet.h5"  # Use the actual filename in models directory
+            if not hasattr(current_app, 'mobilenet_model'):
+                current_app.mobilenet_model = load_model(model_name)
+
+            # Check if we got a dummy model (string) instead of a real model
+            if isinstance(current_app.mobilenet_model, str) and current_app.mobilenet_model == "dummy_model":
+                # Return dummy predictions for development/testing
+                # Create a dummy array with 8 classes (matching your class_names)
+                dummy_predictions = np.zeros(8)
+                dummy_predictions[0] = 0.7  # Set highest probability to first class
+                return dummy_predictions, processed_image_for_storage
+
+            if current_app.mobilenet_model is None:
+                raise ValueError(f'Erreur lors du chargement du modèle {model_name}')
+
+            # Faire la prédiction
+            predictions = current_app.mobilenet_model.predict(img_array)
+
+            return predictions[0], processed_image_for_storage
+
+        # Traiter les deux images et obtenir les prédictions
+        file1.seek(0)  # Remettre le pointeur de fichier au début
+        file2.seek(0)
+        pred1, processed_img1 = process_and_predict(file1, "left")
+        pred2, processed_img2 = process_and_predict(file2, "right")
+
+        # Calculer la moyenne des prédictions
+        avg_predictions = (pred1 + pred2) / 2
+
+        # Obtenir les noms de classes
+        class_names = current_app.class_names
+
+        # Trouver la classe avec la plus haute probabilité moyenne
+        predicted_class_index = np.argmax(avg_predictions)
+        predicted_class = class_names[predicted_class_index]
+        confidence = float(avg_predictions[predicted_class_index])
+
+        # Créer un dictionnaire avec les classes et leurs probabilités moyennes
+        class_predictions = {}
+        for i, class_name in enumerate(class_names):
+            class_predictions[class_name] = float(avg_predictions[i])
+
+        # Prepare prediction results
+        prediction_results = {
+            "prediction": predicted_class,
+            "confidence": confidence,
+            "class_predictions": class_predictions,
+            "is_dummy_prediction": isinstance(current_app.mobilenet_model, str),
+            "model_type": "mobilenet_dual_image"
+        }
+
+        # Save to Firebase if user_id is provided
+        if user_id:
+            # Add user_id to prediction results
+            prediction_results['user_id'] = user_id
+
+            # Convert processed images to base64 for Firestore storage
+            image_data = {}
+            left_image_data = convert_image_to_base64(processed_img1, "left")
+            right_image_data = convert_image_to_base64(processed_img2, "right")
+
+            if left_image_data:
+                image_data['left'] = left_image_data
+            if right_image_data:
+                image_data['right'] = right_image_data
+
+            # Save to Firebase
+            firebase_success = save_to_firebase(user_id, prediction_results, image_data)
+            prediction_results['saved_to_firebase'] = firebase_success
+            if image_data:
+                prediction_results['images_stored_in_firestore'] = True
+                prediction_results['image_ids'] = {
+                    'left': left_image_data['image_id'] if left_image_data else None,
+                    'right': right_image_data['image_id'] if right_image_data else None
+                }
+                total_size_kb = 0
+                if left_image_data:
+                    total_size_kb += left_image_data['size_bytes']
+                if right_image_data:
+                    total_size_kb += right_image_data['size_bytes']
+                prediction_results['total_images_size_kb'] = round(total_size_kb / 1024, 2)
+
+        # Retourner les résultats
+        return jsonify(prediction_results)
+
+    except Exception as e:
+        return jsonify({'error': f'Erreur inattendue: {str(e)}'}), 500
+
+
 @prediction_bp.route('/predict-efficient', methods=['POST'])
 def predict_efficient():
     """
     Endpoint pour faire une prédiction avec le modèle EfficientNet.
-    
+
     Accepte deux images via une requête POST multipart/form-data.
     Traite les deux images, fait une prédiction pour chacune, calcule la moyenne
     et retourne un résultat unique.
-    
+
     Returns:
         JSON: Résultats de la prédiction moyenne ou message d'erreur
     """

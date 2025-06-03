@@ -53,7 +53,17 @@ In your Railway project dashboard, go to **Variables** and add:
 FLASK_ENV=production
 API_VERSION=1.0.0
 ALLOWED_ORIGINS=*
-FIREBASE_CREDENTIALS=profilingiris-firebase-adminsdk-fbsvc-5a10da7e73.json
+FIREBASE_TYPE=service_account
+FIREBASE_PROJECT_ID=profilingiris
+FIREBASE_PRIVATE_KEY_ID=5a10da7e73b1009245acce86e3378aefa77978e8
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC+Z8...truncated...vOzEkUw==\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@profilingiris.iam.gserviceaccount.com
+FIREBASE_CLIENT_ID=112585792494326703507
+FIREBASE_AUTH_URI=https://accounts.google.com/o/oauth2/auth
+FIREBASE_TOKEN_URI=https://oauth2.googleapis.com/token
+FIREBASE_AUTH_PROVIDER_X509_CERT_URL=https://www.googleapis.com/oauth2/v1/certs
+FIREBASE_CLIENT_X509_CERT_URL=https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40profilingiris.iam.gserviceaccount.com
+FIREBASE_UNIVERSE_DOMAIN=googleapis.com
 ```
 
 **For production, replace `ALLOWED_ORIGINS=*` with your actual frontend domain:**
@@ -158,3 +168,4 @@ Railway will automatically redeploy when you push to GitHub.
 - Railway Documentation: [docs.railway.app](https://docs.railway.app)
 - Railway Discord: [discord.gg/railway](https://discord.gg/railway)
 - GitHub Issues: For application-specific problems
+
