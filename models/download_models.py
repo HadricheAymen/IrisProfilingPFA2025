@@ -1,5 +1,9 @@
 """
 Download large model files at runtime to avoid GitHub file size limits
+
+NOTE: As of latest update, ML models (mobileNet.h5, Efficient_10unfrozelayers.keras)
+are now committed directly to the repository and loaded directly.
+This module is now primarily used for downloading the dlib shape predictor model.
 """
 import os
 import requests
