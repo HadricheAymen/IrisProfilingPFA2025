@@ -2,7 +2,7 @@
 nixPkgs = [
   "python311Full",
   "curl",
-  "cmake", 
+  "cmake",
   "pkg-config",
   "gcc",
   "boost",
@@ -14,12 +14,13 @@ nixPkgs = [
 [phases.install]
 cmds = [
   "python -m venv /opt/venv",
-  "/opt/venv/bin/pip install --upgrade pip",
-  "which cmake",
-  "cmake --version",
+  "/opt/venv/bin/pip install --upgrade pip wheel setuptools",
   "export CMAKE_ARGS='-DDLIB_NO_GUI_SUPPORT=ON'",
-  "/opt/venv/bin/pip install dlib --no-cache-dir --verbose",
-  "/opt/venv/bin/pip install -r requirements.txt"
+  "export DLIB_NO_GUI_SUPPORT=1",
+  "/opt/venv/bin/pip install --no-cache-dir --timeout 1000 dlib",
+  "/opt/venv/bin/pip install --no-cache-dir --timeout 1000 tensorflow-cpu",
+  "/opt/venv/bin/pip install --no-cache-dir --timeout 1000 opencv-python-headless",
+  "/opt/venv/bin/pip install --no-cache-dir -r requirements.txt"
 ]
 
 [start]
@@ -30,3 +31,5 @@ NIXPACKS_PYTHON_VERSION = "3.11"
 PYTHONUNBUFFERED = "1"
 CMAKE_ARGS = "-DDLIB_NO_GUI_SUPPORT=ON"
 DLIB_NO_GUI_SUPPORT = "1"
+PIP_TIMEOUT = "1000"
+PIP_DEFAULT_TIMEOUT = "1000"

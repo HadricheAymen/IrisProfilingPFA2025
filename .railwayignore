@@ -1,0 +1,50 @@
+# Exclude unnecessary files from Railway build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache/
+.coverage
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Documentation and development files
+README.md
+DEPLOYMENT.md
+DEPLOYMENT_CHECKLIST.md
+RAILWAY_SETUP.md
+*.md
+
+# Test files
+test_*.py
+*_test.py
+tests/
+
+# Backup files
+models_backup/
+*.backup
+*.bak
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+
+# Large model files that are already in models/
+*.zip
