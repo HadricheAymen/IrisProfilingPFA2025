@@ -1128,6 +1128,35 @@ def debug_models():
         }), 500
 
 
+@prediction_bp.route('/force-download', methods=['POST'])
+def force_download():
+    """Force download models manually for debugging"""
+    try:
+        from models.download_models import ensure_models_downloaded
+
+        print("🔄 Manual download triggered via API endpoint")
+        result = {
+            'timestamp': datetime.now().isoformat(),
+            'status': 'starting',
+            'message': 'Forcing model download...'
+        }
+
+        # Trigger download
+        ensure_models_downloaded()
+
+        result['status'] = 'completed'
+        result['message'] = 'Download process completed. Check logs for details.'
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Download failed: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
 @prediction_bp.route('/test-firebase', methods=['GET'])
 def test_firebase():
     """
