@@ -637,11 +637,17 @@ def predict_mobilenet():
             image = Image.open(io.BytesIO(image_data))
 
             # Prétraiter l'image pour MobileNet (redimensionner à la taille attendue)
-            target_size = (224, 224)  # Taille standard pour MobileNet
+            target_size = (196, 196)  # Taille spécifique pour ce modèle MobileNet
             image = image.resize(target_size)
 
             # Convertir en array pour la prédiction
             img_array = np.array(image)
+
+            # Assurer que l'image a 3 canaux (RGB)
+            if len(img_array.shape) == 2:  # Image en niveaux de gris
+                img_array = np.stack([img_array] * 3, axis=-1)
+            elif img_array.shape[2] == 4:  # Image RGBA
+                img_array = img_array[:, :, :3]  # Garder seulement RGB
 
             # Normaliser l'image si nécessaire (valeurs entre 0 et 1)
             if img_array.max() > 1.0:

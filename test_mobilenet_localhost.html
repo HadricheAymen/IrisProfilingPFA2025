@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test MobileNet - Localhost</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .file-input {
+            margin: 10px 0;
+            padding: 10px;
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Test MobileNet Model - Localhost</h1>
+        <p><strong>Testing:</strong> http://127.0.0.1:5000/api/predict-mobilenet</p>
+
+        <div class="file-input">
+            <label for="image1">Left Eye Image:</label>
+            <input type="file" id="image1" accept="image/*">
+        </div>
+        <div class="file-input">
+            <label for="image2">Right Eye Image:</label>
+            <input type="file" id="image2" accept="image/*">
+        </div>
+        
+        <button onclick="testMobileNet()">🧪 Test MobileNet Model</button>
+        <button onclick="checkHealth()">🏥 Health Check</button>
+        <button onclick="testDebug()">🔍 Debug Info</button>
+        
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:5000';
+
+        async function testMobileNet() {
+            const resultDiv = document.getElementById('result');
+            const image1 = document.getElementById('image1').files[0];
+            const image2 = document.getElementById('image2').files[0];
+
+            if (!image1 || !image2) {
+                alert('Please select both eye images!');
+                return;
+            }
+
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🔄 Testing MobileNet model...\nThis will trigger model loading on first use...';
+
+            try {
+                const formData = new FormData();
+                formData.append('image1', image1);
+                formData.append('image2', image2);
+                formData.append('user_id', 'test_localhost_' + Date.now());
+
+                const response = await fetch(`${API_BASE}/api/predict-mobilenet`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    
+                    let resultText = `✅ MobileNet Test Results:\n\n`;
+                    resultText += `🔮 Prediction: ${data.prediction}\n`;
+                    resultText += `🎯 Confidence: ${data.confidence}\n`;
+                    resultText += `🤖 Model Type: ${data.model_type}\n`;
+                    resultText += `🎭 Is Dummy: ${data.is_dummy_prediction}\n`;
+                    resultText += `🔥 Firebase: ${data.saved_to_firebase}\n`;
+                    resultText += `📁 Firestore: ${data.images_stored_in_firestore}\n\n`;
+                    
+                    // Show class predictions
+                    if (data.class_predictions) {
+                        resultText += `📊 Class Predictions:\n`;
+                        let totalProb = 0;
+                        for (const [className, prob] of Object.entries(data.class_predictions)) {
+                            resultText += `   ${className}: ${prob}\n`;
+                            totalProb += prob;
+                        }
+                        resultText += `\n🧮 Total Probability: ${totalProb.toFixed(6)}\n`;
+                    }
+                    
+                    // Model status
+                    if (data.is_dummy_prediction) {
+                        resultText += `\n⚠️ USING DUMMY MODEL\n`;
+                        resultText += `   Check server logs for model loading issues.`;
+                    } else {
+                        resultText += `\n🎉 REAL MODEL WORKING!\n`;
+                        resultText += `   MobileNet loaded successfully from repository.`;
+                    }
+                    
+                    resultDiv.textContent = resultText;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ MobileNet Test Failed:\n${error.message}`;
+            }
+        }
+
+        async function checkHealth() {
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🔄 Checking server health...';
+
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Health Check Results:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Health Check Failed:\n${error.message}`;
+            }
+        }
+
+        async function testDebug() {
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🔄 Getting debug information...';
+
+            try {
+                const response = await fetch(`${API_BASE}/debug`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `🔍 Debug Information:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Debug Failed:\n${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
