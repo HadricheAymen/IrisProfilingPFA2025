@@ -16,12 +16,23 @@ MODEL_URLS = {
     'shape_predictor_68_face_landmarks.dat': 'https://github.com/davisking/dlib-models/raw/master/shape_predictor_68_face_landmarks.dat.bz2',
 }
 
-# ZIP archive containing ML models (GitHub Release)
+# ZIP archives containing ML models
 ZIP_MODELS = {
-    'iris_models.zip': {
-        'url': 'https://github.com/HadricheAymen/IrisProfilingPFA2025/releases/download/v1.0.0/iris_models.zip',
-        'contains': ['Efficient_10unfrozelayers.keras', 'mobileNet.h5']
-    }
+    'efficient_model.zip': {
+        'url': 'https://github.com/HadricheAymen/IrisProfilingPFA2025/releases/download/v1.0.0/efficient_model.zip',
+        'contains': ['Efficient_10unfrozelayers.keras']
+    },
+    # MobileNet model - will use Google Drive due to size constraints
+    # 'mobilenet_model.zip': {
+    #     'url': 'GOOGLE_DRIVE_DIRECT_LINK_HERE',
+    #     'contains': ['mobileNet.h5']
+    # }
+}
+
+# Direct file downloads (for files hosted externally)
+DIRECT_DOWNLOADS = {
+    # MobileNet model from Google Drive (temporarily disabled until you upload to Google Drive)
+    # 'mobileNet.h5': 'https://drive.google.com/uc?export=download&id=YOUR_FILE_ID_HERE'
 }
 
 # Fallback: If models can't be downloaded, use dummy models
@@ -150,6 +161,20 @@ def ensure_models_downloaded():
                 logger.warning(f"Failed to download {zip_name}, ML models may not work properly")
         else:
             logger.info(f"All files from {zip_name} already exist")
+
+    # Download direct files (like Google Drive links)
+    for filename, url in DIRECT_DOWNLOADS.items():
+        filepath = models_dir / filename
+
+        if not filepath.exists() or filepath.stat().st_size == 0:
+            logger.info(f"Direct download: {filename} not found or empty, downloading...")
+            success = download_file(url, filepath)
+            if success:
+                logger.info(f"✅ Successfully downloaded {filename} directly")
+            else:
+                logger.warning(f"❌ Failed to download {filename} directly")
+        else:
+            logger.info(f"Direct download: {filename} already exists")
 
 if __name__ == "__main__":
     ensure_models_downloaded()
