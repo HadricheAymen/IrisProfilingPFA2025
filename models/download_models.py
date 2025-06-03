@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 # Model download URLs
 MODEL_URLS = {
     'shape_predictor_68_face_landmarks.dat': 'https://github.com/davisking/dlib-models/raw/master/shape_predictor_68_face_landmarks.dat.bz2',
-    # EfficientNet model from GitHub Release (direct file)
-    'Efficient_10unfrozelayers.keras': 'https://github.com/HadricheAymen/IrisProfilingPFA2025/releases/download/v1.0.0/Efficient_10unfrozelayers.keras'
+    # EfficientNet model from Hugging Face (removed from repo)
+    'Efficient_10unfrozelayers.keras': 'https://huggingface.co/HadricheAymen/efficient/resolve/main/Efficient_10unfrozelayers.keras'
 }
 
 # ZIP archives containing ML models (currently none - using direct downloads)
@@ -29,8 +29,8 @@ ZIP_MODELS = {
 
 # Direct file downloads (for files hosted externally)
 DIRECT_DOWNLOADS = {
-    # MobileNet model from Google Drive
-    'mobileNet.h5': 'https://drive.google.com/uc?export=download&id=1mayaqjO2xqegcwwAal8V8a8NAO4fDnx4'
+    # MobileNet model from Hugging Face (removed from repo)
+    'mobileNet.h5': 'https://huggingface.co/HadricheAymen/mobilenet/resolve/main/mobileNet.h5'
 }
 
 # Fallback: If models can't be downloaded, use dummy models
@@ -207,13 +207,16 @@ def ensure_models_downloaded():
     print(f"🔍 Starting essential model download check in: {models_dir}")
     print(f"📁 Directory exists: {models_dir.exists()}")
 
-    # Only download essential models at startup (shape predictor)
-    # ML models will be downloaded on first use (lazy loading)
-    essential_models = ['shape_predictor_68_face_landmarks.dat']
+    # Download essential models at startup (removed from repo, must download)
+    essential_models = ['shape_predictor_68_face_landmarks.dat', 'mobileNet.h5', 'Efficient_10unfrozelayers.keras']
 
-    for filename, url in MODEL_URLS.items():
-        if filename not in essential_models:
-            print(f"⏭️ Skipping {filename} - will download on first use (lazy loading)")
+    # Check all essential models from both MODEL_URLS and DIRECT_DOWNLOADS
+    all_model_sources = {**MODEL_URLS, **DIRECT_DOWNLOADS}
+
+    for filename in essential_models:
+        url = all_model_sources.get(filename)
+        if not url:
+            print(f"⚠️ No URL found for essential model: {filename}")
             continue
 
         filepath = models_dir / filename
@@ -252,7 +255,7 @@ def ensure_models_downloaded():
                     logger.warning(f"Failed to download {filename}, app may not work properly")
                     print(f"   ❌ Failed to download {filename}")
             else:
-                # Handle regular files (shouldn't happen for essential models)
+                # Handle regular files (ML models)
                 success = download_file(url, filepath)
                 if success:
                     logger.info(f"Successfully downloaded {filename}")

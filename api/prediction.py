@@ -659,19 +659,25 @@ def predict_mobilenet():
             # Ajouter la dimension de batch
             img_array = np.expand_dims(img_array, 0)
 
-            # Charger le modèle MobileNet si ce n'est pas déjà fait (with dummy fallback)
+            # Charger le modèle MobileNet si ce n'est pas déjà fait (priority: external download)
             model_name = "mobileNet.h5"  # Use the actual filename in models directory
             if not hasattr(current_app, 'mobilenet_model'):
-                print("🔄 Loading MobileNet model from repository...")
+                print("🔄 Loading MobileNet model (priority fix)...")
 
-                # Load directly from repository with fallback to dummy
+                # Try to download/load model with external source priority
+                from models.download_models import ensure_model_downloaded
                 model_path = os.path.join(os.path.dirname(__file__), '..', 'models', model_name)
+
+                # Always try to ensure model is downloaded (will check if valid first)
+                print(f"📥 Ensuring MobileNet model is available...")
+                ensure_model_downloaded(model_name, force_redownload=False)
+
                 if os.path.exists(model_path):
                     print(f"📁 Loading model from: {model_path}")
                     current_app.mobilenet_model = load_model(model_name)
                     print(f"✅ MobileNet model loaded: {type(current_app.mobilenet_model)}")
                 else:
-                    print(f"⚠️ Model file not found: {model_path}")
+                    print(f"⚠️ Model file not found after download attempt: {model_path}")
                     print("⚠️ Falling back to dummy model for development")
                     current_app.mobilenet_model = "dummy_model"
 
@@ -1182,6 +1188,36 @@ def force_download():
         return jsonify({
             'status': 'error',
             'message': f'Force download failed: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+@prediction_bp.route('/force-download-mobilenet', methods=['POST'])
+def force_download_mobilenet():
+    """Force download MobileNet model specifically (priority fix)"""
+    try:
+        from models.download_models import ensure_model_downloaded
+
+        print("🔄 Manual FORCE download MobileNet triggered via API endpoint")
+        result = {
+            'timestamp': datetime.now().isoformat(),
+            'status': 'starting',
+            'message': 'Force redownloading MobileNet model from external source...'
+        }
+
+        # Force redownload MobileNet specifically
+        success = ensure_model_downloaded('mobileNet.h5', force_redownload=True)
+
+        result['status'] = 'completed' if success else 'failed'
+        result['message'] = f'MobileNet download {"succeeded" if success else "failed"}'
+        result['download_success'] = success
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'MobileNet download failed: {str(e)}',
             'timestamp': datetime.now().isoformat()
         }), 500
 
