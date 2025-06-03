@@ -340,7 +340,15 @@ def load_model(model_name=None):
             
             if os.path.exists(model_path):
                 print(f"✅ Modèle trouvé: {model_path}")
-                return tf.keras.models.load_model(model_path)
+                try:
+                    print(f"🔄 Attempting to load TensorFlow model: {model_path}")
+                    model = tf.keras.models.load_model(model_path)
+                    print(f"✅ Successfully loaded model: {type(model)}")
+                    return model
+                except Exception as load_error:
+                    print(f"❌ Failed to load model {model_path}: {load_error}")
+                    print(f"❌ Load error type: {type(load_error).__name__}")
+                    # Continue to try other models
             else:
                 print(f"⚠️ Modèle {model_name} non trouvé à {model_path}")
                 # Continuer pour essayer les modèles par défaut
@@ -355,12 +363,23 @@ def load_model(model_name=None):
             model_path = os.path.join(model_dir, model_file)
             if os.path.exists(model_path):
                 print(f"✅ Modèle par défaut trouvé: {model_path}")
-                
-                # Charger selon le type de fichier
-                if model_file.endswith('.h5') or model_file.endswith('.keras'):
-                    return tf.keras.models.load_model(model_path)
-                elif model_file.endswith('.joblib'):
-                    return joblib.load(model_path)
+
+                try:
+                    # Charger selon le type de fichier
+                    if model_file.endswith('.h5') or model_file.endswith('.keras'):
+                        print(f"🔄 Loading TensorFlow model: {model_path}")
+                        model = tf.keras.models.load_model(model_path)
+                        print(f"✅ Successfully loaded default model: {type(model)}")
+                        return model
+                    elif model_file.endswith('.joblib'):
+                        print(f"🔄 Loading joblib model: {model_path}")
+                        model = joblib.load(model_path)
+                        print(f"✅ Successfully loaded joblib model: {type(model)}")
+                        return model
+                except Exception as load_error:
+                    print(f"❌ Failed to load default model {model_path}: {load_error}")
+                    print(f"❌ Load error type: {type(load_error).__name__}")
+                    # Continue to try next model
         
         # Aucun modèle trouvé, afficher les fichiers disponibles pour le débogage
         print(f"⚠️ Aucun modèle trouvé dans {model_dir}")
@@ -380,6 +399,9 @@ def load_model(model_name=None):
     
     except Exception as e:
         print(f"❌ Erreur lors du chargement du modèle: {e}")
+        print(f"❌ Error type: {type(e).__name__}")
+        import traceback
+        print(f"❌ Full traceback: {traceback.format_exc()}")
         return None
 
 def preprocess_for_prediction(image, target_size=(196, 196)):
