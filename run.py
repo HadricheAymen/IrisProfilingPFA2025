@@ -16,7 +16,7 @@ if __name__ == "__main__":
     flask_env = os.environ.get("FLASK_ENV", "production")
 
     print(f"🚀 Starting server on {host}:{port}")
-    print(f" Environment: {flask_env}")
+    print(f"🌍 Environment: {flask_env}")
     print(f"🔥 Firebase credentials: {os.environ.get('FIREBASE_CREDENTIALS', 'profilingiris-firebase-adminsdk-fbsvc-5a10da7e73.json')}")
 
     if flask_env == "development":
