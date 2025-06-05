@@ -6,6 +6,7 @@ from api.prediction import prediction_bp
 import os
 import logging
 from dotenv import load_dotenv
+from models.model_loader import load_model
 
 # Load environment variables from .env file
 load_dotenv()
@@ -41,8 +42,20 @@ else:
 app.register_blueprint(iris_bp, url_prefix='/api')
 app.register_blueprint(prediction_bp, url_prefix='/api')
 
-# Define class names for the EfficientNet model
-app.class_names = ['Flower-Jewel', 'Flower-Stream', 'Shaker-Stream', 'Flower', 'Jewel', 'Shaker', 'Shaker-Jewel', 'Stream']
+# Preload models at startup instead of during request
+def preload_models():
+    app.mobilenet_model = load_model('MobileNet_model.keras')
+    app.efficient_model = load_model('Efficient_10unfrozelayers.keras')
+    app.class_names = ['Flower', 'Jewel', 'Stream', 'Shaker', 'Other1', 'Other2', 'Other3', 'Other4']
+    logger.info("Models preloaded successfully")
+
+# Call after app initialization
+with app.app_context():
+    try:
+        preload_models()
+    except Exception as e:
+        logger.error(f"Failed to preload models: {e}")
+        # Fall back to lazy loading
 
 # Enhanced health check endpoint
 @app.route('/health', methods=['GET'])
@@ -141,6 +154,7 @@ if __name__ == '__main__':
     else:
         print(f"Starting production server on port {port}")
         serve(app, host='0.0.0.0', port=port)
+
 
 
 
