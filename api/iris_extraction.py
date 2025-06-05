@@ -192,4 +192,3 @@ def extract_iris():
         }), 400
     except Exception as e:
         return jsonify({'error': f"Error during extraction: {str(e)}"}), 400
-

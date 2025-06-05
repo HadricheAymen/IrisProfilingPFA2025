@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Tous les Modèles ML</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .model-section {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .mobilenet { border-color: #007bff; }
+        .efficientnet { border-color: #28a745; }
+        .dlib { border-color: #ffc107; }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        .btn-mobilenet { background-color: #007bff; color: white; }
+        .btn-efficientnet { background-color: #28a745; color: white; }
+        .btn-dlib { background-color: #ffc107; color: black; }
+        .btn-health { background-color: #6c757d; color: white; }
+        
+        button:hover { opacity: 0.8; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        
+        .file-input {
+            margin: 10px 0;
+            padding: 10px;
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .loading { background-color: #fff3cd; border: 1px solid #ffeaa7; color: #856404; }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .status-card {
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Test Complet des Modèles ML</h1>
+        
+        <div class="info">
+            <strong>🎯 Objectif:</strong> Tester tous les modèles ML après migration vers Hugging Face<br>
+            <strong>🔗 API:</strong> <span id="apiUrl">https://carefree-warmth-production.up.railway.app</span><br>
+            <strong>✅ Status:</strong> Modèles téléchargés avec succès ! MobileNet: 43.13MB, EfficientNet: 27.24MB
+        </div>
+
+        <!-- Global Controls -->
+        <div style="text-align: center; margin: 20px 0;">
+            <button class="btn-health" onclick="checkHealth()">🏥 Health Check</button>
+            <button class="btn-health" onclick="checkDebug()">🔍 Debug Info</button>
+            <button class="btn-health" onclick="forceDownloadAll()">🔄 Force Download All</button>
+        </div>
+
+        <!-- File Inputs -->
+        <div class="file-input">
+            <label><strong>Image 1 (Œil Gauche):</strong></label>
+            <input type="file" id="image1" accept="image/*">
+        </div>
+        <div class="file-input">
+            <label><strong>Image 2 (Œil Droit):</strong></label>
+            <input type="file" id="image2" accept="image/*">
+        </div>
+
+        <!-- Model Tests -->
+        <div class="status-grid">
+            <!-- MobileNet Test -->
+            <div class="model-section mobilenet">
+                <h3>📱 MobileNet Model</h3>
+                <p><strong>Source:</strong> HuggingFace/HadricheAymen/mobilenet</p>
+                <p><strong>Size:</strong> ~45MB | <strong>Input:</strong> 196x196x3</p>
+                <button class="btn-mobilenet" onclick="testMobileNet()">🧪 Test MobileNet</button>
+                <div id="mobilenet-result" class="result" style="display: none;"></div>
+            </div>
+
+            <!-- EfficientNet Test -->
+            <div class="model-section efficientnet">
+                <h3>⚡ EfficientNet Model</h3>
+                <p><strong>Source:</strong> HuggingFace/HadricheAymen/efficient</p>
+                <p><strong>Size:</strong> ~28MB | <strong>Format:</strong> .keras</p>
+                <button class="btn-efficientnet" onclick="testEfficientNet()">🧪 Test EfficientNet</button>
+                <div id="efficientnet-result" class="result" style="display: none;"></div>
+            </div>
+
+            <!-- Dlib Test -->
+            <div class="model-section dlib">
+                <h3>👁️ Dlib Shape Predictor</h3>
+                <p><strong>Source:</strong> GitHub/davisking/dlib-models</p>
+                <p><strong>Size:</strong> ~95MB | <strong>Function:</strong> Eye detection</p>
+                <button class="btn-dlib" onclick="testDlib()">🧪 Test Iris Extraction</button>
+                <div id="dlib-result" class="result" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Global Results -->
+        <div id="global-result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://carefree-warmth-production.up.railway.app';
+        document.getElementById('apiUrl').textContent = API_BASE;
+
+        function showResult(elementId, className, text) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result ${className}`;
+            element.textContent = text;
+        }
+
+        function getImages() {
+            const image1 = document.getElementById('image1').files[0];
+            const image2 = document.getElementById('image2').files[0];
+            
+            if (!image1 || !image2) {
+                alert('Veuillez sélectionner les deux images d\'yeux !');
+                return null;
+            }
+            return { image1, image2 };
+        }
+
+        async function testMobileNet() {
+            const images = getImages();
+            if (!images) return;
+
+            showResult('mobilenet-result', 'loading', '🔄 Test MobileNet en cours...\nTéléchargement du modèle si nécessaire...');
+
+            try {
+                const formData = new FormData();
+                formData.append('image1', images.image1);
+                formData.append('image2', images.image2);
+                formData.append('user_id', 'test_mobilenet_' + Date.now());
+
+                const response = await fetch(`${API_BASE}/api/predict-mobilenet`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    let resultText = `✅ MobileNet Test RÉUSSI!\n\n`;
+                    resultText += `🔮 Prédiction: ${data.prediction}\n`;
+                    resultText += `🎯 Confiance: ${data.confidence}\n`;
+                    resultText += `🤖 Type Modèle: ${data.model_type}\n`;
+                    resultText += `🎭 Dummy Model: ${data.is_dummy_prediction}\n`;
+                    resultText += `🔥 Firebase: ${data.saved_to_firebase}\n\n`;
+                    
+                    if (data.is_dummy_prediction) {
+                        resultText += `⚠️ ATTENTION: Utilise un modèle factice!\n`;
+                        resultText += `Le modèle réel n'a pas pu être chargé.`;
+                    } else {
+                        resultText += `🎉 SUCCÈS: Modèle réel fonctionnel!`;
+                    }
+                    
+                    showResult('mobilenet-result', 'success', resultText);
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${data.error || JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                showResult('mobilenet-result', 'error', `❌ MobileNet Test ÉCHOUÉ:\n${error.message}`);
+            }
+        }
+
+        async function testEfficientNet() {
+            const images = getImages();
+            if (!images) return;
+
+            showResult('efficientnet-result', 'loading', '🔄 Test EfficientNet en cours...\nTéléchargement du modèle si nécessaire...');
+
+            try {
+                const formData = new FormData();
+                formData.append('image1', images.image1);
+                formData.append('image2', images.image2);
+                formData.append('user_id', 'test_efficient_' + Date.now());
+
+                const response = await fetch(`${API_BASE}/api/predict-efficient`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    let resultText = `✅ EfficientNet Test RÉUSSI!\n\n`;
+                    resultText += `🔮 Prédiction: ${data.prediction}\n`;
+                    resultText += `🎯 Confiance: ${data.confidence}\n`;
+                    resultText += `🤖 Type Modèle: ${data.model_type}\n`;
+                    resultText += `🎭 Dummy Model: ${data.is_dummy_prediction}\n`;
+                    resultText += `🔥 Firebase: ${data.saved_to_firebase}\n\n`;
+                    
+                    if (data.is_dummy_prediction) {
+                        resultText += `⚠️ ATTENTION: Utilise un modèle factice!\n`;
+                        resultText += `Le modèle réel n'a pas pu être chargé.`;
+                    } else {
+                        resultText += `🎉 SUCCÈS: Modèle réel fonctionnel!`;
+                    }
+                    
+                    showResult('efficientnet-result', 'success', resultText);
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${data.error || JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                showResult('efficientnet-result', 'error', `❌ EfficientNet Test ÉCHOUÉ:\n${error.message}`);
+            }
+        }
+
+        async function testDlib() {
+            const image1 = document.getElementById('image1').files[0];
+            if (!image1) {
+                alert('Veuillez sélectionner au moins une image pour tester Dlib !');
+                return;
+            }
+
+            showResult('dlib-result', 'loading', '🔄 Test Dlib en cours...\nExtraction des iris...');
+
+            try {
+                const formData = new FormData();
+                formData.append('image', image1);
+
+                const response = await fetch(`${API_BASE}/api/extract-iris`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    let resultText = `✅ Dlib Test RÉUSSI!\n\n`;
+                    resultText += `👁️ Iris Gauche: ${data.left_iris ? 'Extrait' : 'Échec'}\n`;
+                    resultText += `👁️ Iris Droit: ${data.right_iris ? 'Extrait' : 'Échec'}\n`;
+                    resultText += `🔧 Traitement: Terminé\n\n`;
+                    resultText += `🎉 SUCCÈS: Dlib shape predictor fonctionnel!`;
+                    
+                    showResult('dlib-result', 'success', resultText);
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${data.error || JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                showResult('dlib-result', 'error', `❌ Dlib Test ÉCHOUÉ:\n${error.message}`);
+            }
+        }
+
+        async function checkHealth() {
+            showResult('global-result', 'loading', '🔄 Vérification de la santé du serveur...');
+
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('global-result', 'success', `✅ Health Check:\n${JSON.stringify(data, null, 2)}`);
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                showResult('global-result', 'error', `❌ Health Check Échoué:\n${error.message}`);
+            }
+        }
+
+        async function checkDebug() {
+            showResult('global-result', 'loading', '🔄 Récupération des informations de debug...');
+
+            try {
+                const response = await fetch(`${API_BASE}/debug`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('global-result', 'success', `🔍 Debug Info:\n${JSON.stringify(data, null, 2)}`);
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                showResult('global-result', 'error', `❌ Debug Échoué:\n${error.message}`);
+            }
+        }
+
+        async function forceDownloadAll() {
+            showResult('global-result', 'loading', '🔄 Forçage du téléchargement de tous les modèles...\nCela peut prendre plusieurs minutes...');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/force-download`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    let resultText = `✅ Téléchargement Forcé Terminé!\n\n`;
+                    resultText += `Status: ${data.status}\n`;
+                    resultText += `Message: ${data.message}\n\n`;
+                    
+                    if (data.download_results) {
+                        resultText += `📊 Résultats:\n`;
+                        for (const [model, status] of Object.entries(data.download_results)) {
+                            resultText += `   ${model}: ${status}\n`;
+                        }
+                    }
+                    
+                    showResult('global-result', 'success', resultText);
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(data)}`);
+                }
+            } catch (error) {
+                showResult('global-result', 'error', `❌ Téléchargement Forcé Échoué:\n${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
